@@ -41,7 +41,7 @@
     * Use og GCN to do regression/classification or forecast on multimlongitudinal factors. Not really relevant in our case
 5. A New Computationally Efficient Algorithm to solve Feature Selection for Functional Data Classification in High-dimensional Spaces
     * Not applicable in our case, feature selection algorithm
-6. Shielded by Education? The Buffering Role ofEducation in the Relationships BetweenChanges in Mental Health and PhysicalFunctioning Through Time Among OlderEuropeans
+6. Shielded by Education? The Buffering Role of Education in the Relationships Between Changes in Mental Health and Physical Functioning Through Time Among Older Europeans
     * OK
     * Use of wave 5 and 6 to analyse mental health. Some variables from SHARE, some from easySHARE, seems reproducible and used a mixed effect model so relevant
 7. The effects of COVID-19-era unemployment and business closures upon the physical and mental health of older Europeans: Mediation through financial circumstances and social activity
