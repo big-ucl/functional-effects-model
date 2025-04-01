@@ -1,6 +1,6 @@
-from src.parser import parse_cmdline_args
+from parser import parse_cmdline_args
 import torch
-from src.train import train
+from train import train
 
 
 def main(raw_args = None):

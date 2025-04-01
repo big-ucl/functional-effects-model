@@ -1,7 +1,7 @@
 import pandas as pd
 import torch
 
-from src.utils import (
+from utils import (
     generate_general_params,
     generate_rum_structure,
     generate_ordinal_spec,
@@ -10,7 +10,7 @@ from src.utils import (
     split_dataset,
 )
 from rumboost.rumboost import rum_train
-from src.constants import PATH_TO_DATA, alt_spec_features
+from constants import PATH_TO_DATA, alt_spec_features
 
 
 def train(args):
