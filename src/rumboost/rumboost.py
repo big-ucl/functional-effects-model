@@ -23,7 +23,7 @@ from lightgbm.basic import (
 )
 from lightgbm.compat import SKLEARN_INSTALLED, _LGBMGroupKFold, _LGBMStratifiedKFold
 
-from rumboost.metrics import cross_entropy, binary_cross_entropy, mse, safe_softplus
+from rumboost.metrics import cross_entropy, binary_cross_entropy, mse, coral_eval
 from rumboost.nested_cross_nested import (
     nest_probs,
     cross_nested_probs,
@@ -64,6 +64,8 @@ try:
         binary_cross_entropy_torch_compiled,
         mse_torch,
         mse_torch_compiled,
+        coral_eval_torch,
+        coral_eval_torch_compiled,
     )
 
     torch_installed = True
@@ -898,7 +900,7 @@ class RUMBoost:
         preds = self._preds
         thresholds = self.thresholds
         # add 0 to the end of thresholds to avoid index error, but not used for calculations
-        thresholds = np.append(thresholds, 0) 
+        thresholds = np.append(thresholds, 0)
         raw_preds = self.raw_preds[self.subsample_idx]
         grad = np.where(
             labels == 0,
@@ -1767,13 +1769,17 @@ class RUMBoost:
             else:
                 m = monotone_constraints[0]
                 if np.any(self.split_and_leaf_values[j]["leaves"][:index] * m < 0):
-                    offset = np.max(-self.split_and_leaf_values[j]["leaves"][:index] * m)
+                    offset = np.max(
+                        -self.split_and_leaf_values[j]["leaves"][:index] * m
+                    )
                     self.split_and_leaf_values[j]["leaves"][:index] += offset * m
                     self.boosters[j].set_leaf_output(
                         self.boosters[j].num_trees() - 1, 0, l_0 + offset * m
                     )
                 if np.any(self.split_and_leaf_values[j]["leaves"][index:] * m < 0):
-                    offset = np.max(-self.split_and_leaf_values[j]["leaves"][index:] * m)
+                    offset = np.max(
+                        -self.split_and_leaf_values[j]["leaves"][index:] * m
+                    )
                     self.split_and_leaf_values[j]["leaves"][index:] += offset * m
                     self.boosters[j].set_leaf_output(
                         self.boosters[j].num_trees() - 1, 1, l_1 + offset * m
@@ -2632,8 +2638,6 @@ def rum_train(
             "Only one model specification can be used at a time. Choose between nested_logit, cross_nested_logit or ordinal_logit"
         )
 
-
-
     rumb.batch_size = params.get("batch_size", 0)
 
     # additional parameters to compete for best booster
@@ -2790,9 +2794,7 @@ def rum_train(
             "proportional_odds",
             "coral",
         ]:
-            raise ValueError(
-                "Ordinal logit model must be proportional_odds or coral."
-            )
+            raise ValueError("Ordinal logit model must be proportional_odds or coral.")
         if rumb.num_classes == 2:
             raise ValueError("Ordinal logit requires a minimum of 3 classes")
         if "model" not in model_specification["ordinal_logit"]:
@@ -3111,6 +3113,8 @@ def rum_train(
                 eval_func = binary_cross_entropy_torch_compiled
             elif rumb.num_classes == 1 and not rumb.ord_model:
                 eval_func = mse_torch_compiled
+            elif rumb.ord_model == "coral":
+                eval_func = coral_eval_torch_compiled
             else:
                 eval_func = cross_entropy_torch_compiled
         else:
@@ -3118,6 +3122,8 @@ def rum_train(
                 eval_func = binary_cross_entropy_torch
             elif rumb.num_classes == 1 and not rumb.ord_model:
                 eval_func = mse_torch
+            elif rumb.ord_model == "coral":
+                eval_func = coral_eval_torch
             else:
                 eval_func = cross_entropy_torch
     else:
@@ -3125,6 +3131,8 @@ def rum_train(
             eval_func = binary_cross_entropy
         elif rumb.num_classes == 1 and not rumb.ord_model:
             eval_func = mse
+        elif rumb.ord_model == "coral":
+            eval_func = coral_eval
         else:
             eval_func = cross_entropy
 

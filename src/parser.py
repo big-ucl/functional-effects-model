@@ -147,6 +147,30 @@ def parse_cmdline_args(raw_args=None, parser=None):
         help="Save the model to disk",
         choices=["true", "false"],
     )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=256,
+        help="Batch size for the model",
+    )
+    parser.add_argument(
+        "--num_epochs",
+        type=int,
+        default=200,
+        help="Number of epochs for the model",
+    )
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=20,
+        help="Patience for early stopping",
+    )
+    parser.add_argument(
+        "--n_layers",
+        type=int,
+        default=1,
+        help="Number of layers for the model",
+    )
 
 
     parser.set_defaults(feature=True)
