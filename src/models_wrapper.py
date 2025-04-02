@@ -2,6 +2,7 @@ import torch
 import pandas as pd
 import lightgbm as lgb
 import numpy as np
+import copy
 from torch.utils.data import DataLoader
 
 from utils import (
@@ -12,12 +13,16 @@ from utils import (
     build_lgb_dataset,
 )
 from rumboost.rumboost import rum_train
+from rumboost.rumboost import RUMBoost as load_rumboost
 
 from reslogit.models import OrdinalResLogit
 from reslogit.data_utils import ResLogitDataset
 
+from tastenet.models import TasteNet as TasteNetBuild
+from tastenet.data_utils import TasteNetDataset
 
-class RUMBoost:
+
+class RUMBoost():
     """
     Wrapper class for RUMBoost model.
     """
@@ -36,8 +41,8 @@ class RUMBoost:
 
         # generate general params
         general_params = generate_general_params(
-            num_classes=13,
-            num_iterations=kwargs.get["args"].num_iterations,
+            num_classes=kwargs.get("num_classes", 13),
+            num_iterations=kwargs.get("args").num_iterations,
             early_stopping_rounds=kwargs.get("args").early_stopping_rounds,
             verbose=kwargs.get("args").verbose,
             verbose_interval=kwargs.get("args").verbose_interval,
@@ -121,35 +126,70 @@ class RUMBoost:
 
         return self.model.best_score_train, self.model.best_score
 
-    def predict(self, X_test: lgb.Dataset) -> np.array:
+    def predict(self, X_test: pd.DataFrame) -> np.array:
         """ "
         Predicts the target variable for the test set."
 
         Parameters
         ----------
-        X_test : lgb.Dataset
+        X_test : pd.DataFrame
             Test set.
 
         Returns
         -------
-        np.array
+        preds : np.array
             Predicted target variable, as probabilities.
+        binary_preds : np.array
+            The binary probabilities of the target being bigger than each level.
+        label_pred : np.array
+            Predicted target variable, as labels.
         """
-        return self.model.predict(X_test)
+        assert hasattr(self, "model"), "Model not trained yet. Please train the model before predicting."
+        # build lgb dataset
+        lgb_test = lgb.Dataset(X_test)
+        preds = self.model.predict(lgb_test)
+        binary_preds = - np.cumsum(preds, axis=1)[:, :-1] + 1
+        label_preds = np.sum(binary_preds > 0.5, axis=1)
+        return preds, binary_preds, label_preds
+    
+    def save_model(self, path: str):
+        """
+        Saves the model to the specified path.
 
+        Parameters
+        ----------
+        path : str
+            Path to save the model.
+        """
+        assert hasattr(self, "model"), "Model not trained yet. Please train the model before saving."
+        self.model.save_model(path)
 
-class ResLogit:
+    def load_model(self, path: str):
+        """
+        Loads the model from the specified path.
+
+        Parameters
+        ----------
+        path : str
+            Path to load the model from.
+        """
+        self.model = load_rumboost(model_file=path)
+
+class ResLogit():
     """
     Wrapper class for Ordinal ResLogit model.
     """
 
     def __init__(self, **kwargs):
+        self.alt_spec_features = kwargs.get("alt_spec_features")
+        self.socio_demo_features = kwargs.get("socio_demo_features")
+
         self.model = OrdinalResLogit(
-            input=kwargs.get("input"),
-            choice=kwargs.get("choice"),
-            n_vars=kwargs.get("n_vars"),
-            n_choices=kwargs.get("n_choices"),
-            n_layers=kwargs.get("n_layers"),
+            kwargs.get("num_classes", 13),
+            self.alt_spec_features,
+            self.socio_demo_features,
+            kwargs.get("args").n_layers,
+            kwargs.get("args").batch_size,
         )
 
         self.batch_size = kwargs.get("args").batch_size
@@ -165,7 +205,7 @@ class ResLogit:
             self.optimiser,
             mode="min",
             factor=0.5,
-            patience=self.patience,
+            patience=self.patience/2,
             verbose=True,
         )
         if torch.cuda.is_available():
@@ -200,6 +240,8 @@ class ResLogit:
         self.train_dataset = ResLogitDataset(
             X_train,
             y_train,
+            self.alt_spec_features,
+            self.socio_demo_features,
         )
         self.train_dataloader = DataLoader(
             self.train_dataset,
@@ -211,6 +253,8 @@ class ResLogit:
             self.valid_dataset = ResLogitDataset(
                 X_valid,
                 y_valid,
+                self.alt_spec_features,
+                self.socio_demo_features,
             )
             self.valid_dataloader = DataLoader(
                 self.valid_dataset,
@@ -231,23 +275,25 @@ class ResLogit:
             train_loss = 0
             best_loss = 1e10
             best_val_loss = 1e10
+            patience_counter = 0
 
-            for i, (x, y) in enumerate(self.train_dataloader):
+            for i, (x, y, z) in enumerate(self.train_dataloader):
                 x = x.to(self.device)
                 y = y.to(self.device)
+                z = z.to(self.device)
                 classes = torch.arange(self.model.n_choices - 1).to(self.device)
                 levels = y[:, None] > classes[None, :]
 
                 self.optimiser.zero_grad()
-                self.model.fit()
-                output = self.model.output #binary logits
+
+                output = self.model(x, z) #binary logits
                 loss = self.criterion(output, levels)
                 loss.backward()
                 self.optimiser.step()
 
                 train_loss += loss.item()
                 if i % 100 == 0:
-                    print(f"Epoch {epoch + 1}/{self.num_epochs}, Batch {i}, Loss: {loss.item()}")
+                    print(f"Batch {i}/{int(len(self.train_dataloader)/self.batch_size)}, Loss: {loss.item()}")
             train_loss /= len(self.train_dataloader)
             print(f"Epoch {epoch + 1}/{self.num_epochs}, Training Loss: {train_loss}")
 
@@ -255,13 +301,14 @@ class ResLogit:
                 val_loss = 0
                 self.model.eval()
                 with torch.no_grad():
-                    for x, y in self.valid_dataloader:
+                    for i, (x, y, z) in enumerate(self.valid_dataloader):
                         x = x.to(self.device)
                         y = y.to(self.device)
+                        z = z.to(self.device)
                         classes = torch.arange(self.model.n_choices - 1).to(self.device)
                         levels = y[:, None] > classes[None, :]
 
-                        output = self.model.output
+                        output = self.model(x, z) #binary logits
                         val_loss += self.criterion(output, levels)
                 val_loss /= len(self.valid_dataloader)
                 self.scheduler.step(val_loss)
@@ -270,10 +317,41 @@ class ResLogit:
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     best_loss = train_loss
+                    self.best_model = copy.deepcopy(self.model)
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                    if patience_counter >= self.patience:
+                        print("Early stopping")
+                        break
 
-        return best_loss, best_val_loss
 
-    def predict(self, X_test: lgb.Dataset) -> np.array:
+        return best_loss.cpu().numpy(), best_val_loss.cpu().numpy() 
+
+    def save_model(self, path: str):
+        """
+        Saves the model to the specified path.
+
+        Parameters
+        ----------
+        path : str
+            Path to save the model.
+        """
+        torch.save(self.model.state_dict(), path)
+
+    def load_model(self, path: str):
+        """
+        Loads the model from the specified path.
+
+        Parameters
+        ----------
+        path : str
+            Path to load the model from.
+        """
+        self.model.load_state_dict(torch.load(path))
+        self.model.eval()
+
+    def predict(self, X_test: pd.DataFrame) -> np.array:
         """ "
         Predicts the target variable for the test set."
 
@@ -284,7 +362,221 @@ class ResLogit:
 
         Returns
         -------
-        np.array
+        preds : np.array
             Predicted target variable, as probabilities.
+        binary_preds : np.array
+            The binary probabilities of the target being bigger than each level.
+        label_pred : np.array
+            Predicted target variable, as labels.
         """
-        return self.model.predict(X_test)
+        self.model.eval()
+        x = torch.Tensor(X_test.loc[:, self.alt_spec_features]).to(self.device)
+        z = torch.Tensor(X_test.loc[:, self.socio_demo_features]).to(self.device)
+        logits = self.model(x, z)
+        binary_preds = torch.sigmoid(logits)
+        label_pred = torch.sum(binary_preds > 0.5, axis=1)
+        preds = -torch.diff(binary_preds, dim=1, prepend=1, append=0)
+
+        return preds.cpu().numpy(), binary_preds.cpu().numpy(), label_pred.cpu().numpy()
+    
+class TasteNet():
+    """
+    Wrapper class for TasteNet model.
+    """
+
+    def __init__(self, **kwargs):
+
+        self.alt_spec_features = kwargs.get("alt_spec_features")
+        self.socio_demo_features = kwargs.get("socio_demo_features")
+
+        self.model = TasteNetBuild(
+            kwargs.get("args"),
+            len(self.alt_spec_features),
+            len(self.socio_demo_features),
+            kwargs.get("num_classes", 13),
+        )
+
+        self.batch_size = kwargs.get("args").batch_size
+        self.num_epochs = kwargs.get("args").num_epochs
+        self.patience = kwargs.get("args").patience
+
+        self.optimiser = torch.optim.Adam(
+            self.model.parameters(),
+            lr=kwargs.get("args").learning_rate,
+        )
+        self.criterion = torch.nn.BCEWithLogitsLoss()
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimiser,
+            mode="min",
+            factor=0.5,
+            patience=self.patience/2,
+            verbose=True,
+        )
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+            self.model.to(self.device)
+        else:
+            self.device = torch.device("cpu")
+            self.model.to(self.device)
+
+    def build_dataloader(
+        self,
+        X_train: pd.DataFrame,
+        y_train: pd.Series,
+        X_valid: pd.DataFrame = None,
+        y_valid: pd.Series = None,
+    ):
+        """
+        Builds and stores the LightGBM dataset.
+
+        Parameters
+        ----------
+        X_train : pd.DataFrame
+            Training features.
+        y_train : pd.Series
+            Training target variable.
+        X_valid : pd.DataFrame, optional
+            Validation features. The default is None.
+        y_valid : pd.Series, optional
+            Validation target variable. The default is None.
+        """
+        self.train_dataset = TasteNetDataset(
+            X_train,
+            y_train,
+            self.alt_spec_features,
+            self.socio_demo_features,
+        )
+        self.train_dataloader = DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+        )
+
+        if X_valid is not None and y_valid is not None:
+            self.valid_dataset = TasteNetDataset(
+                X_valid,
+                y_valid,
+                self.alt_spec_features,
+                self.socio_demo_features,
+            )
+            self.valid_dataloader = DataLoader(
+                self.valid_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+            )
+        else:
+            self.valid_dataloader = None
+            self.valid_dataset = None
+
+
+    def fit(self):
+        """
+        Fits the model to the training data.
+        """
+        for epoch in range(self.num_epochs):
+            self.model.train()
+            train_loss = 0
+            best_loss = 1e10
+            best_val_loss = 1e10
+            patience_counter = 0
+
+            for i, (x, y, z) in enumerate(self.train_dataloader):
+                x = x.to(self.device)
+                y = y.to(self.device)
+                z = z.to(self.device)
+                classes = torch.arange(self.model.n_choices - 1).to(self.device)
+                levels = y[:, None] > classes[None, :]
+
+                self.optimiser.zero_grad()
+                output = self.model(x, z) #binary logits
+                loss = self.criterion(output, levels)
+                loss.backward()
+                self.optimiser.step()
+
+                train_loss += loss.item()
+                if i % 100 == 0:
+                    print(f"Batch {i}/{int(len(self.train_dataloader)/self.batch_size)}, Loss: {loss.item()}")
+            train_loss /= len(self.train_dataloader)
+            print(f"Epoch {epoch + 1}/{self.num_epochs}, Training Loss: {train_loss}")
+
+            if self.valid_dataloader is not None:
+                val_loss = 0
+                self.model.eval()
+                with torch.no_grad():
+                    for i, (x, y, z) in enumerate(self.valid_dataloader):
+                        x = x.to(self.device)
+                        y = y.to(self.device)
+                        z = z.to(self.device)
+                        classes = torch.arange(self.model.n_choices - 1).to(self.device)
+                        levels = y[:, None] > classes[None, :]
+
+                        output = self.model(x, z) #binary logits
+                        val_loss += self.criterion(output, levels)
+                val_loss /= len(self.valid_dataloader)
+                self.scheduler.step(val_loss)
+                print(f"Epoch {epoch + 1}/{self.num_epochs}, Validation Loss: {val_loss.item()}")
+
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    best_loss = train_loss
+                    self.best_model = copy.deepcopy(self.model)
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                    if patience_counter >= self.patience:
+                        print("Early stopping")
+                        break
+
+
+        return best_loss.cpu().numpy(), best_val_loss.cpu().numpy() 
+
+    def save_model(self, path: str):
+        """
+        Saves the model to the specified path.
+
+        Parameters
+        ----------
+        path : str
+            Path to save the model.
+        """
+        torch.save(self.model.state_dict(), path)
+
+    def load_model(self, path: str):
+        """
+        Loads the model from the specified path.
+
+        Parameters
+        ----------
+        path : str
+            Path to load the model from.
+        """
+        self.model.load_state_dict(torch.load(path))
+        self.model.eval()
+
+    def predict(self, X_test: pd.DataFrame) -> np.array:
+        """ "
+        Predicts the target variable for the test set."
+
+        Parameters
+        ----------
+        X_test : pd.DataFrame
+            Test set.
+
+        Returns
+        -------
+        preds : np.array
+            Predicted target variable, as probabilities.
+        binary_preds : np.array
+            The binary probabilities of the target being bigger than each level.
+        label_pred : np.array
+            Predicted target variable, as labels.
+        """
+        self.model.eval()
+        x = torch.Tensor(X_test.loc[:, self.alt_spec_features]).to(self.device)
+        z = torch.Tensor(X_test.loc[:, self.socio_demo_features]).to(self.device)
+        logits = self.model(x, z)
+        binary_preds = torch.sigmoid(logits)
+        label_pred = torch.sum(binary_preds > 0.5, axis=1)
+        preds = -torch.diff(binary_preds, dim=1, prepend=1, append=0)
+
+        return preds.cpu().numpy(), binary_preds.cpu().numpy(), label_pred.cpu().numpy()

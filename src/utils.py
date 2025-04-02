@@ -393,3 +393,45 @@ def stratified_group_k_fold(X, y, groups, k, seed=None):
         test_indices = [i for i, g in enumerate(groups) if g in test_groups]
 
         yield train_indices, test_indices
+
+
+def compute_metrics(
+    preds: np.ndarray,
+    binary_preds: np.ndarray,
+    labels: np.ndarray,
+    y_test: pd.Series,
+) -> tuple[float, float, float]:
+    """
+    Compute the metrics for the model.
+
+    Parameters
+    ----------
+    preds: np.ndarray
+        The predictions of the model.
+    binary_preds: np.ndarray
+        The binary predictions of the model.
+    labels: np.ndarray
+        The labels of the model.
+    y_test: pd.Series
+        The test set.
+
+    Returns
+    -------
+    mae_test: float
+        The mean absolute error of the model.
+    loss_test: float
+        The loss of the model.
+    emae_test: float
+        The expected mean absolute error of the model.
+    """
+    mae_test = np.mean(np.abs(labels - y_test.values))
+
+    ranks = np.arange(binary_preds.shape[1])
+    levels = y_test.values[:, None] > ranks[None, :]
+    loss_test = np.mean(levels * np.log(binary_preds) + (1 - levels) * np.log(1- binary_preds), axis=1).mean()
+
+    all_labels = np.arange(preds.shape[1])
+    distances = np.abs(all_labels - y_test.values)
+    emae_test = np.mean(preds * distances[None, :], axis=1).mean()
+
+    return mae_test, loss_test, emae_test

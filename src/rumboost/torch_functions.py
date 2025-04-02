@@ -1377,7 +1377,7 @@ def coral_eval_torch(
         raise ImportError(
             "Pytorch is not installed. Please install it to run rumboost on torch tensors."
         )
-    sigmoids = - torch.cumsum(preds, dim=1) + 1
+    sigmoids = - torch.cumsum(preds, dim=1)[:, :-1] + 1
     classes = torch.arange(preds.shape[1], device=preds.device)
     levels = labels[:, None] > classes[None, :]
 
@@ -1407,7 +1407,7 @@ def coral_eval_torch_compiled(
         raise ImportError(
             "Pytorch is not installed. Please install it to run rumboost on torch tensors."
         )
-    sigmoids = - torch.cumsum(preds, dim=1) + 1
+    sigmoids = - torch.cumsum(preds, dim=1)[:, :-1] + 1
     classes = torch.arange(preds.shape[1], device=preds.device)
     levels = labels[:, None] > classes[None, :]
 

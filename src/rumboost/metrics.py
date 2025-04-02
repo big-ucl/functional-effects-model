@@ -146,7 +146,7 @@ def coral_eval(preds, labels):
     loss : float
         The cross-entropy loss.
     """
-    sigmoids = - np.cumsum(preds, axis=1)[:, 1:-1] + 1
+    sigmoids = - np.cumsum(preds, axis=1)[:, :-1] + 1
     classes = np.arange(preds.shape[1] - 1)
     levels = labels[:, None] > classes[None, :]
     return np.mean(np.log(sigmoids) * levels + np.log(1 - sigmoids) * (1 - levels), axis=1).mean()

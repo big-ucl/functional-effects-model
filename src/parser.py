@@ -4,13 +4,20 @@ def parse_cmdline_args(raw_args=None, parser=None):
 
     if parser is None:
         parser = argparse.ArgumentParser()
+        
+    parser.add_argument(
+        "--outpath",
+        type=str,
+        default="",
+        help="Output path for the model",
+    )
 
     parser.add_argument(
         "--model_type",
         type=str,
-        default="proportional_odds",
-        help="Ordinal model type: proportional_odds or coral or corn",
-        choices=["proportional_odds", "coral", "corn"],
+        default="coral",
+        help="Ordinal model type: proportional_odds or coral",
+        choices=["proportional_odds", "coral"],
     )
 
     parser.add_argument(
@@ -168,8 +175,42 @@ def parse_cmdline_args(raw_args=None, parser=None):
     parser.add_argument(
         "--n_layers",
         type=int,
-        default=1,
+        default=16,
         help="Number of layers for the model",
+    )
+    parser.add_argument(
+        "--layer_sizes",
+        type=int,
+        nargs="+",
+        default=[128, 64],
+        help="Layer sizes for the model",
+    )
+    parser.add_argument(
+        "--dropout",
+        type=float,
+        default=0.0,
+        help="Dropout rate for the model",
+    )
+    parser.add_argument(
+        "--batch_norm",
+        type=bool,
+        default=False,
+        help="Batch normalisation for the model",
+    )
+    parser.add_argument(
+        "--act_func",
+        type=str,
+        default="relu",
+        help="Activation function for the model",
+        choices=["relu", "tanh", "sigmoid"],
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="RUMBoost",
+        required=True,
+        help="Model to train",
+        choices=["RUMBoost", "ResLogit", "TasteNet"],
     )
 
 
@@ -180,5 +221,6 @@ def parse_cmdline_args(raw_args=None, parser=None):
          'false': False}
 
     args.save_model = d[args.save_model]  
+    args.batch_norm = d[args.batch_norm]
 
     return args

@@ -1,23 +1,26 @@
 from torch.utils.data import Dataset
+import torch
 
 class ResLogitDataset(Dataset):
     """Custom dataset for ResLogit model."""
 
-    def __init__(self, x, y):
+    def __init__(self, x, y, alt_spec_features, socio_demo_features):
         """
         Args:
             data (pd.DataFrame): DataFrame containing the dataset.
         """
-        self.x = x
-        self.y = y
+        self.x = torch.Tensor(x.loc[:, alt_spec_features])
+        self.x_names = alt_spec_features
+        self.N = len(self.x)
+        self.y = torch.Tensor(y)
+
+        self.z = torch.Tensor(x.loc[:, socio_demo_features]) # N,D socio-demo variables
 
     def __len__(self):
-        return len(self.x)
+        return self.N 
     
     def __getitem__(self, idx):
         """
         Get the sample given its idx in the list 
         """
-        x = self.x.iloc[idx]
-        y = self.y.iloc[idx]
-        return x, y
+        return self.x[idx], self.y[idx], self.z[idx]

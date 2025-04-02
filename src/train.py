@@ -1,22 +1,25 @@
 import pandas as pd
-import torch
+import os
 
-from utils import (
-    generate_general_params,
-    generate_rum_structure,
-    generate_ordinal_spec,
-    add_hyperparameters,
-    build_lgb_dataset,
-    split_dataset,
-)
-from rumboost.rumboost import rum_train
+from helper import set_all_seeds
+from utils import split_dataset, compute_metrics
 from constants import PATH_TO_DATA, alt_spec_features
+from models_wrapper import RUMBoost, ResLogit, TasteNet
 
 
 def train(args):
     """
     Train the rumboost model.
     """
+
+    if not args.outpath:
+        args.outpath = f"results/{args.model}/"
+
+    # create the output directory if it does not exist
+    os.makedirs(args.outpath, exist_ok=True)
+
+    # set the random seed for reproducibility
+    set_all_seeds(args.seed)
 
     # load the data
     data = pd.read_csv(PATH_TO_DATA)
@@ -46,59 +49,65 @@ def train(args):
         and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
     ]
 
-    # generate rum structure
-    rum_structure = generate_rum_structure(alt_spec_features, socio_demo_chars)
+    if args.model == "RUMBoost":
+        model = RUMBoost(
+            alt_spec_features=alt_spec_features,
+            socio_demo_chars=socio_demo_chars,
+            num_classes=13,
+            args=args,
+        )
+        save_path = args.outpath + "model.json"
+    elif args.model == "ResLogit":
+        model = ResLogit(
+            alt_spec_features=alt_spec_features,
+            socio_demo_chars=socio_demo_chars,
+            num_classes=13,
+            args=args,
+        )
+        save_path = args.outpath + "model.pkl"
+    elif args.model == "TasteNet":
+        model = TasteNet(
+            alt_spec_features=alt_spec_features,
+            socio_demo_chars=socio_demo_chars,
+            num_classes=13,
+            args=args,
+        )
+        save_path = args.outpath + "model.pkl"
 
-    # generate ordinal spec
-    ordinal_spec = generate_ordinal_spec(
-        model_type=args.model_type, optim_interval=args.optim_interval
+    for i, (train_index, val_index) in folds:
+        if i > 0:
+            break  # only train on the first fold for computational reasons
+        X_train_fold, y_train_fold = (
+            X_train.iloc[train_index],
+            y_train.iloc[train_index],
+        )
+        X_val_fold, y_val_fold = X_train.iloc[val_index], y_train.iloc[val_index]
+
+        model.build_dataloader(X_train_fold, y_train_fold, X_val_fold, y_val_fold)
+
+        # fit the model
+        best_train_loss, best_val_loss = model.fit()
+
+    # test the model
+    preds, binary_preds, labels = model.predict(X_test)
+
+    mae_test, loss_test, emae_test = compute_metrics(
+        preds, binary_preds, labels, y_test
     )
 
-    # generate general params
-    general_params = generate_general_params(
-        num_classes=13,
-        num_iterations=args.num_iterations,
-        early_stopping_rounds=args.early_stopping_rounds,
-        verbose=args.verbose,
-        verbose_interval=args.verbose_interval,
-    )
+    print(f"Best Train Loss: {best_train_loss}, Best Val Loss: {best_val_loss}")
+    print(f"Test MAE: {mae_test}, Test Loss: {loss_test}, Test EMAE: {emae_test}")
 
-    # add hyperparameters
-    hyperparameters = {
-        "num_leaves": args.num_leaves,
-        "min_gain_to_split": args.min_gain_to_split,
-        "min_sum_hessian_in_leaf": args.min_sum_hessian_in_leaf,
-        "learning_rate": args.learning_rate,
-        "max_bin": args.max_bin,
-        "min_data_in_bin": args.min_data_in_bin,
-        "min_data_in_leaf": args.min_data_in_leaf,
-        "feature_fraction": args.feature_fraction,
-        "bagging_fraction": args.bagging_fraction,
-        "bagging_freq": args.bagging_freq,
-        "lambda_l1": args.lambda_l1,
-        "lambda_l2": args.lambda_l2,
+    results_dict = {
+        "train_loss": best_train_loss,
+        "val_loss": best_val_loss,
+        "mae_test": mae_test,
+        "loss_test": loss_test,
+        "emae_test": emae_test,
     }
-    rum_structure[-1] = add_hyperparameters(rum_structure[-1], hyperparameters)
 
-    model_spec = {
-        "rum_structure": rum_structure,
-        "general_params": general_params,
-        "ordinal_logit": ordinal_spec,
-    }
+    # save the results
+    pd.DataFrame(results_dict, index=[0]).to_csv(args.outpath + "results_dict.csv")
 
-    # build lgb dataset
-    lgb_train = build_lgb_dataset(X_train, y_train)
-    lgb_test = build_lgb_dataset(X_test, y_test)
-
-    # using gpu or not
-    # if torch.cuda.is_available():
-    #     torch_tensors = {"device": "cuda"}
-    torch_tensors = None
-
-    # train rumboost model
-    model = rum_train(
-        lgb_train,
-        model_spec,
-        valid_sets=[lgb_test],
-        torch_tensors=torch_tensors,
-    )
+    if args.save_model:
+        model.save_model(save_path)
