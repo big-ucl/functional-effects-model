@@ -1,4 +1,5 @@
 import random
+import pickle
 from collections import defaultdict, Counter
 from typing import List, Dict, Any, Optional, Union
 
@@ -213,6 +214,7 @@ def split_dataset(
     val_size: Optional[float] = None,
     random_state: int = 42,
     groups: Optional[pd.Series] = None,
+    save_path: Optional[str] = None,
 ) -> TrainTestSplit:
     """
     Split the dataset into train and test sets.
@@ -235,6 +237,8 @@ def split_dataset(
         Whether to use stratified sampling or not. The default is None.
         If None, the data will be split randomly. If not None, the data will be split
         using the groups provided.
+    save_path: Optional[str]
+        The path to save the train and test sets. The default is None.
 
     Returns
     -------
@@ -260,12 +264,19 @@ def split_dataset(
         )
         test_df = df.drop(train_df.index).reset_index(drop=True)
 
+        if save_path:
+            train_df.to_csv(save_path + "train.csv", index=False)
+            test_df.to_csv(save_path + "test.csv", index=False)
+
         if val_size:
             val_size = val_size / (1 - test_size)
             train_df = train_df.sample(
                 frac=val_size, random_state=random_state
             ).reset_index(drop=True)
             val_df = train_df.drop(train_df.index).reset_index(drop=True)
+            if save_path:
+                val_df.to_csv(save_path + "val.csv", index=False)
+
             return (
                 train_df[features],
                 train_df[target],
@@ -291,6 +302,10 @@ def split_dataset(
         groups_train = groups.iloc[train_idx].reset_index(drop=True)
         break
 
+    if save_path:
+        train_df.to_csv(save_path + "train.csv", index=False)
+        test_df.to_csv(save_path + "test.csv", index=False)
+
     if val_size:
         val_size = val_size / (1 - test_size)
         val_folds = stratified_group_k_fold(
@@ -300,6 +315,14 @@ def split_dataset(
             k=int(1 / val_size),
             seed=random_state,
         )
+        if save_path:
+            pickle.dump(
+                list(val_folds),
+                open(
+                    save_path + "folds.pickle",
+                    "wb",
+                ),
+            )
         for train_idx, val_idx in val_folds:
             val_df = train_df.iloc[val_idx].reset_index(drop=True)
             train_df = train_df.iloc[train_idx].reset_index(drop=True)

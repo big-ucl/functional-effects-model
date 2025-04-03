@@ -1,4 +1,8 @@
 PATH_TO_DATA = "../data/easySHARE/easySHARE_preprocessed.csv"
+PATH_TO_DATA_TRAIN = "../data/easySHARE/easySHARE_preprocessed_train.csv"
+PATH_TO_DATA_VAL = "../data/easySHARE/easySHARE_preprocessed_val.csv"
+PATH_TO_DATA_TEST = "../data/easySHARE/easySHARE_preprocessed_test.csv"
+PATH_TO_FOLDS = "../data/easySHARE/easySHARE_preprocessed_folds.pickle"
 
 alt_spec_features = [
     "chronic_mod",

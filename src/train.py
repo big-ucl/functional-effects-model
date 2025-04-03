@@ -1,10 +1,16 @@
 import pandas as pd
 import os
 import time
+import pickle
 
 from helper import set_all_seeds
 from utils import split_dataset, compute_metrics
-from constants import PATH_TO_DATA, alt_spec_features
+from constants import (
+    PATH_TO_DATA,
+    PATH_TO_DATA_TEST,
+    PATH_TO_DATA_TRAIN,
+    alt_spec_features,
+)
 from models_wrapper import RUMBoost, ResLogit, TasteNet
 
 
@@ -23,34 +29,60 @@ def train(args):
     set_all_seeds(args.seed)
 
     # load the data
-    data = pd.read_csv(PATH_TO_DATA)
+    if args.optimal_hyperparams:
+        data_train = pd.read_csv(PATH_TO_DATA_TRAIN)
+        data_test = pd.read_csv(PATH_TO_DATA_TEST)
+        columns = data_train.columns
+    else:
+        data = pd.read_csv(PATH_TO_DATA)
+        columns = data.columns
 
     features = [
         col
-        for col in data.columns
+        for col in columns
         if col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
     ]
     target = "depression_scale"
 
     # split data
-    X_train, y_train, X_val, y_val, X_test, y_test = split_dataset(
-        data,
-        target,
-        features,
-        train_size=args.train_size,
-        val_size=args.val_size,
-        groups=data["hhid"],
-        random_state=args.seed,
-    )
+    if args.optimal_hyperparams:
+        X_train, y_train = data_train[features], data_train[target]
+        X_test, y_test = data_test[features], data_test[target]
+        X_val, y_val = None, None
+    else:
+        X_train, y_train, X_val, y_val, X_test, y_test = split_dataset(
+            data,
+            target,
+            features,
+            train_size=args.train_size,
+            val_size=args.val_size,
+            groups=data["hhid"],
+            random_state=args.seed,
+        )
 
     socio_demo_chars = [
         col
-        for col in data.columns
+        for col in columns
         if col not in alt_spec_features
         and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
     ]
 
+    if args.optimal_hyperparams:
+        # load the optimal hyperparameters for the model
+        try:
+            opt_hyperparams_path = f"results/{args.model}/best_params.pkl"
+            with open(opt_hyperparams_path, "rb") as f:
+                optimal_hyperparams = pickle.load(f)
+                args.__dict__.update(optimal_hyperparams)
+        except FileNotFoundError:
+            print(
+                f"Optimal hyperparameters not found for {args.model}. Using default hyperparameters."
+            )
+
     if args.model == "RUMBoost":
+        if args.optimal_hyperparams:
+            args.num_iterations = optimal_hyperparams["best_iteration"]
+            args.early_stopping_rounds = None
         model = RUMBoost(
             alt_spec_features=alt_spec_features,
             socio_demo_chars=socio_demo_chars,

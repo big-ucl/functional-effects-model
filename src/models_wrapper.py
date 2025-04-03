@@ -123,6 +123,8 @@ class RUMBoost:
             torch_tensors=self.torch_tensors,
         )
 
+        self.best_iteration = self.model.best_iteration
+
         return self.model.best_score_train, self.model.best_score
 
     def predict(self, X_test: pd.DataFrame) -> np.array:
@@ -324,6 +326,7 @@ class ResLogit:
                     best_val_loss = val_loss
                     best_loss = train_loss
                     self.best_model = copy.deepcopy(self.model)
+                    self.best_iteration = epoch + 1
                     patience_counter = 0
                 else:
                     patience_counter += 1
@@ -544,6 +547,7 @@ class TasteNet:
                     best_val_loss = val_loss
                     best_loss = train_loss
                     self.best_model = copy.deepcopy(self.model)
+                    self.best_iteration = epoch + 1
                     patience_counter = 0
                 else:
                     patience_counter += 1

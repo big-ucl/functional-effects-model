@@ -220,6 +220,13 @@ def parse_cmdline_args(raw_args=None, parser=None):
         help="Device to use for training",
         choices=["cuda", "cpu"],
     )
+    parser.add_argument(
+        "--optimal_hyperparams",
+        type=str,
+        default="false",
+        help="Use optimal hyperparameters for the model",
+        choices=["true", "false"],
+    )
 
 
     parser.set_defaults(feature=True)
@@ -230,5 +237,6 @@ def parse_cmdline_args(raw_args=None, parser=None):
 
     args.save_model = d[args.save_model]  
     args.batch_norm = d[args.batch_norm]
+    args.optimal_hyperparams = d[args.optimal_hyperparams]
 
     return args
