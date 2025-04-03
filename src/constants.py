@@ -1,4 +1,4 @@
-PATH_TO_DATA = "~/panel-data/easySHARE/easySHARE_preprocessed_wo_drop.csv"
+PATH_TO_DATA = "~/panel-data/data/easySHARE/easySHARE_preprocessed_wo_drop.csv"
 
 alt_spec_features = [
     "chronic_mod",
