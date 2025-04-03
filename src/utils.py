@@ -1,6 +1,6 @@
 import random
 from collections import defaultdict, Counter
-from typing import List, Dict, Any, Optional, Union, Generator
+from typing import List, Dict, Any, Optional, Union
 
 import lightgbm as lgb
 import pandas as pd
@@ -17,15 +17,7 @@ TrainTestSplit = Union[
         pd.DataFrame,
         pd.DataFrame,
     ],  # train, val and test
-    tuple[
-        pd.DataFrame,
-        pd.DataFrame,
-        pd.DataFrame,
-        pd.DataFrame,
-        Generator[List[int], List[int]],
-    ],  # train, test and folds
 ]
-
 
 def generate_rum_structure(
     alt_spec_features: Optional[List[str]] = None,
@@ -56,25 +48,22 @@ def generate_rum_structure(
 
     # alternative-specific features, one per ensemble
     if alt_spec_features:
+        monotone_constraints = [0] * len(alt_spec_features)
+        interaction_constraints = [list(range(len(alt_spec_features)))]
         rum_structure_as = [
             {
-                "variables": [f],
+                "variables": alt_spec_features,
                 "utility": [0],
                 "boosting_params": {
                     "monotone_constraints_method": "advanced",
                     "max_depth": 1,
                     "n_jobs": -1,
                     "learning_rate": 0.1,
-                    "monotone_constraints": [
-                        0,
-                    ],
-                    "interaction_constraints": [
-                        [0],
-                    ],
+                    "monotone_constraints": monotone_constraints,
+                    "interaction_constraints": interaction_constraints,
                 },
                 "shared": False
             }
-            for f in alt_spec_features
         ]
 
         # add the alternative-specific features to the rum_structure
@@ -299,24 +288,30 @@ def split_dataset(
     for train_idx, test_idx in folds:
         train_df = df.iloc[train_idx].reset_index(drop=True)
         test_df = df.iloc[test_idx].reset_index(drop=True)
+        groups_train = groups.iloc[train_idx].reset_index(drop=True)
         break
 
     if val_size:
         val_size = val_size / (1 - test_size)
-        folds = stratified_group_k_fold(
+        val_folds = stratified_group_k_fold(
             train_df[features],
             train_df[target],
-            groups,
+            groups_train,
             k=int(1 / val_size),
             seed=random_state,
         )
+        for train_idx, val_idx in val_folds:
+            val_df = train_df.iloc[val_idx].reset_index(drop=True)
+            train_df = train_df.iloc[train_idx].reset_index(drop=True)
+            break
 
         return (
             train_df[features],
             train_df[target],
+            val_df[features],
+            val_df[target],
             test_df[features],
             test_df[target],
-            folds,
         )
 
     return train_df[features], train_df[target], test_df[features], test_df[target]
@@ -428,10 +423,10 @@ def compute_metrics(
 
     ranks = np.arange(binary_preds.shape[1])
     levels = y_test.values[:, None] > ranks[None, :]
-    loss_test = np.mean(levels * np.log(binary_preds) + (1 - levels) * np.log(1- binary_preds), axis=1).mean()
+    loss_test = - np.mean(levels * np.log(binary_preds) + (1 - levels) * np.log(1- binary_preds), axis=1).mean()
 
     all_labels = np.arange(preds.shape[1])
-    distances = np.abs(all_labels - y_test.values)
-    emae_test = np.mean(preds * distances[None, :], axis=1).mean()
+    distances = np.abs(all_labels[None, :] - y_test.values[:, None])
+    emae_test = np.mean(preds * distances, axis=1).mean()
 
     return mae_test, loss_test, emae_test

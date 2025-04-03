@@ -15,12 +15,12 @@ class TasteNetDataset(Dataset):
         socio_demo_features : list
             List of socio-demographic feature names.
         """
-        self.x = torch.Tensor(x.loc[:, alt_spec_features])
+        self.x = torch.from_numpy(x.loc[:, alt_spec_features].values).to(dtype=torch.float32) # N,A alternative-specific variables
         self.x_names = alt_spec_features
         self.N = len(self.x)
-        self.y = torch.Tensor(y)
-        
-        self.z = torch.Tensor(x.loc[:, socio_demo_features]) # N,D socio-demo variables
+        self.y = torch.from_numpy(y.values)
+
+        self.z = torch.from_numpy(x.loc[:, socio_demo_features].values).to(dtype=torch.float32) # N,D socio-demo variables
         
         _, self.D = self.z.size() # z size = (N,D)
 

@@ -193,9 +193,10 @@ def parse_cmdline_args(raw_args=None, parser=None):
     )
     parser.add_argument(
         "--batch_norm",
-        type=bool,
-        default=False,
+        type=str,
+        default="false",
         help="Batch normalisation for the model",
+        choices=["true", "false"],
     )
     parser.add_argument(
         "--act_func",
@@ -211,6 +212,13 @@ def parse_cmdline_args(raw_args=None, parser=None):
         required=True,
         help="Model to train",
         choices=["RUMBoost", "ResLogit", "TasteNet"],
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda",
+        help="Device to use for training",
+        choices=["cuda", "cpu"],
     )
 
 

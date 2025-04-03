@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+import time
 
 from helper import set_all_seeds
 from utils import split_dataset, compute_metrics
@@ -9,7 +10,7 @@ from models_wrapper import RUMBoost, ResLogit, TasteNet
 
 def train(args):
     """
-    Train the rumboost model.
+    Train the specified model.
     """
 
     if not args.outpath:
@@ -24,6 +25,8 @@ def train(args):
     # load the data
     data = pd.read_csv(PATH_TO_DATA)
 
+    data = data.iloc[:10000, :]
+
     features = [
         col
         for col in data.columns
@@ -32,7 +35,7 @@ def train(args):
     target = "depression_scale"
 
     # split data
-    X_train, y_train, X_test, y_test, folds = split_dataset(
+    X_train, y_train, X_val, y_val, X_test, y_test = split_dataset(
         data,
         target,
         features,
@@ -74,19 +77,12 @@ def train(args):
         )
         save_path = args.outpath + "model.pkl"
 
-    for i, (train_index, val_index) in folds:
-        if i > 0:
-            break  # only train on the first fold for computational reasons
-        X_train_fold, y_train_fold = (
-            X_train.iloc[train_index],
-            y_train.iloc[train_index],
-        )
-        X_val_fold, y_val_fold = X_train.iloc[val_index], y_train.iloc[val_index]
+    model.build_dataloader(X_train, y_train, X_val, y_val)
 
-        model.build_dataloader(X_train_fold, y_train_fold, X_val_fold, y_val_fold)
-
-        # fit the model
-        best_train_loss, best_val_loss = model.fit()
+    # fit the model
+    start_time = time.time()
+    best_train_loss, best_val_loss = model.fit()
+    end_time = time.time()
 
     # test the model
     preds, binary_preds, labels = model.predict(X_test)
@@ -101,6 +97,7 @@ def train(args):
     results_dict = {
         "train_loss": best_train_loss,
         "val_loss": best_val_loss,
+        "train_time": end_time - start_time,
         "mae_test": mae_test,
         "loss_test": loss_test,
         "emae_test": emae_test,

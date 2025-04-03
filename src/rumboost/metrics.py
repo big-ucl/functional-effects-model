@@ -101,7 +101,7 @@ def weighted_binary_cross_entropy(preds, labels):
     Cross entropy : float
         The negative cross-entropy, as float.
     """
-    classes = np.arange(np.unique(labels).shape[0] - 1)
+    classes = np.arange(preds.shape[1])
     binary_labels = labels[:, None] > classes[None, :]
     return -np.mean(
         np.mean(
@@ -149,4 +149,4 @@ def coral_eval(preds, labels):
     sigmoids = - np.cumsum(preds, axis=1)[:, :-1] + 1
     classes = np.arange(preds.shape[1] - 1)
     levels = labels[:, None] > classes[None, :]
-    return np.mean(np.log(sigmoids) * levels + np.log(1 - sigmoids) * (1 - levels), axis=1).mean()
+    return - np.mean(np.log(sigmoids) * levels + np.log(1 - sigmoids) * (1 - levels), axis=1).mean()

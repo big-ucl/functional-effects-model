@@ -1,12 +1,5 @@
-import numpy as np
-import pandas as pd
-import timeit
-import pickle
 import torch
 import torch.nn as nn
-import yaml
-
-Floatt = torch.float64
 
 
 class MNL(nn.Module):
@@ -45,7 +38,7 @@ class ResNetLayer(nn.Module):
         self.n_out = n_out
 
         # define Initial value of residual layer weights
-        W_init = torch.eye(self.n_out, dtype=Floatt)
+        W_init = torch.eye(self.n_out)
 
         # learnable parameters of a model
         self.W = nn.Parameter(W_init)
@@ -77,7 +70,7 @@ class ResNet(nn.Module):
         self.n_layers = n_layers
 
         # define n_layers residual layer
-        self.layers = nn.Sequential(nn.ModuleList([ResNetLayer(n_in, n_out) for _ in range(n_layers)]))
+        self.layers = nn.Sequential(*[ResNetLayer(n_in, n_out) for _ in range(n_layers)])
         self.final_layer = nn.Linear(n_out, 1, bias=False)
         self.layers.add_module("final_layer", self.final_layer)
 
@@ -99,7 +92,7 @@ class Coral_layer(nn.Module):
         n_choices (int): number of choice alternatives.
         """
         super(Coral_layer, self).__init__()
-        self.coral_bias = nn.Parameter(torch.ones((n_choices - 1,), dtype=Floatt))
+        self.coral_bias = nn.Parameter(torch.ones((n_choices - 1,)))
 
     def forward(self, x):
         """return the output of Coral layer.
@@ -108,7 +101,7 @@ class Coral_layer(nn.Module):
             input (TensorVariable):  output of last residual layer.
         """
 
-        return self.coral_logits(x) + self.coral_bias
+        return x + self.coral_bias
 
 
 class OrdinalResLogit(nn.Module):

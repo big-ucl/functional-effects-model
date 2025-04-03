@@ -22,7 +22,7 @@ from tastenet.models import TasteNet as TasteNetBuild
 from tastenet.data_utils import TasteNetDataset
 
 
-class RUMBoost():
+class RUMBoost:
     """
     Wrapper class for RUMBoost model.
     """
@@ -47,7 +47,6 @@ class RUMBoost():
             verbose=kwargs.get("args").verbose,
             verbose_interval=kwargs.get("args").verbose_interval,
         )
-
 
         # add hyperparameters
         hyperparameters = {
@@ -75,7 +74,7 @@ class RUMBoost():
         }
 
         # using gpu or not
-        if torch.cuda.is_available():
+        if kwargs.get("args").device == "cuda":
             self.torch_tensors = {"device": "cuda"}
         else:
             self.torch_tensors = None
@@ -88,7 +87,7 @@ class RUMBoost():
         y_valid: pd.Series = None,
     ):
         """
-        Builds and stores the LightGBM dataset. 
+        Builds and stores the LightGBM dataset.
         There is no specific dataloader for RUMBoost.
 
         Parameters
@@ -144,14 +143,18 @@ class RUMBoost():
         label_pred : np.array
             Predicted target variable, as labels.
         """
-        assert hasattr(self, "model"), "Model not trained yet. Please train the model before predicting."
+        assert hasattr(
+            self, "model"
+        ), "Model not trained yet. Please train the model before predicting."
         # build lgb dataset
-        lgb_test = lgb.Dataset(X_test)
+        lgb_test = lgb.Dataset(X_test, free_raw_data=False)
         preds = self.model.predict(lgb_test)
-        binary_preds = - np.cumsum(preds, axis=1)[:, :-1] + 1
+        if self.torch_tensors:
+            preds = preds.cpu().numpy()
+        binary_preds = -np.cumsum(preds, axis=1)[:, :-1] + 1
         label_preds = np.sum(binary_preds > 0.5, axis=1)
         return preds, binary_preds, label_preds
-    
+
     def save_model(self, path: str):
         """
         Saves the model to the specified path.
@@ -161,7 +164,9 @@ class RUMBoost():
         path : str
             Path to save the model.
         """
-        assert hasattr(self, "model"), "Model not trained yet. Please train the model before saving."
+        assert hasattr(
+            self, "model"
+        ), "Model not trained yet. Please train the model before saving."
         self.model.save_model(path)
 
     def load_model(self, path: str):
@@ -175,19 +180,20 @@ class RUMBoost():
         """
         self.model = load_rumboost(model_file=path)
 
-class ResLogit():
+
+class ResLogit:
     """
     Wrapper class for Ordinal ResLogit model.
     """
 
     def __init__(self, **kwargs):
         self.alt_spec_features = kwargs.get("alt_spec_features")
-        self.socio_demo_features = kwargs.get("socio_demo_features")
+        self.socio_demo_chars = kwargs.get("socio_demo_chars")
 
         self.model = OrdinalResLogit(
             kwargs.get("num_classes", 13),
             self.alt_spec_features,
-            self.socio_demo_features,
+            self.socio_demo_chars,
             kwargs.get("args").n_layers,
             kwargs.get("args").batch_size,
         )
@@ -205,16 +211,12 @@ class ResLogit():
             self.optimiser,
             mode="min",
             factor=0.5,
-            patience=self.patience/2,
+            patience=self.patience / 2,
             verbose=True,
         )
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda")
-            self.model.to(self.device)
-        else:
-            self.device = torch.device("cpu")
-            self.model.to(self.device)
 
+        self.device = torch.device(kwargs.get("args").device)
+        self.model.to(self.device)
 
     def build_dataloader(
         self,
@@ -241,7 +243,7 @@ class ResLogit():
             X_train,
             y_train,
             self.alt_spec_features,
-            self.socio_demo_features,
+            self.socio_demo_chars,
         )
         self.train_dataloader = DataLoader(
             self.train_dataset,
@@ -254,7 +256,7 @@ class ResLogit():
                 X_valid,
                 y_valid,
                 self.alt_spec_features,
-                self.socio_demo_features,
+                self.socio_demo_chars,
             )
             self.valid_dataloader = DataLoader(
                 self.valid_dataset,
@@ -264,7 +266,6 @@ class ResLogit():
         else:
             self.valid_dataloader = None
             self.valid_dataset = None
-
 
     def fit(self):
         """
@@ -282,18 +283,20 @@ class ResLogit():
                 y = y.to(self.device)
                 z = z.to(self.device)
                 classes = torch.arange(self.model.n_choices - 1).to(self.device)
-                levels = y[:, None] > classes[None, :]
+                levels = (y[:, None] > classes[None, :]).float()
 
                 self.optimiser.zero_grad()
 
-                output = self.model(x, z) #binary logits
+                output = self.model(x, z)  # binary logits
                 loss = self.criterion(output, levels)
                 loss.backward()
                 self.optimiser.step()
 
                 train_loss += loss.item()
                 if i % 100 == 0:
-                    print(f"Batch {i}/{int(len(self.train_dataloader)/self.batch_size)}, Loss: {loss.item()}")
+                    print(
+                        f"Batch {i}/{int(len(self.train_dataloader)/self.batch_size)}, Loss: {loss.item()}"
+                    )
             train_loss /= len(self.train_dataloader)
             print(f"Epoch {epoch + 1}/{self.num_epochs}, Training Loss: {train_loss}")
 
@@ -306,13 +309,15 @@ class ResLogit():
                         y = y.to(self.device)
                         z = z.to(self.device)
                         classes = torch.arange(self.model.n_choices - 1).to(self.device)
-                        levels = y[:, None] > classes[None, :]
+                        levels = (y[:, None] > classes[None, :]).float()
 
-                        output = self.model(x, z) #binary logits
-                        val_loss += self.criterion(output, levels)
+                        output = self.model(x, z)  # binary logits
+                        val_loss += self.criterion(output, levels).item()
                 val_loss /= len(self.valid_dataloader)
                 self.scheduler.step(val_loss)
-                print(f"Epoch {epoch + 1}/{self.num_epochs}, Validation Loss: {val_loss.item()}")
+                print(
+                    f"Epoch {epoch + 1}/{self.num_epochs}, Validation Loss: {val_loss}"
+                )
 
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
@@ -325,8 +330,7 @@ class ResLogit():
                         print("Early stopping")
                         break
 
-
-        return best_loss.cpu().numpy(), best_val_loss.cpu().numpy() 
+        return best_loss, best_val_loss
 
     def save_model(self, path: str):
         """
@@ -370,16 +374,30 @@ class ResLogit():
             Predicted target variable, as labels.
         """
         self.model.eval()
-        x = torch.Tensor(X_test.loc[:, self.alt_spec_features]).to(self.device)
-        z = torch.Tensor(X_test.loc[:, self.socio_demo_features]).to(self.device)
+        x = (
+            torch.from_numpy(X_test.loc[:, self.alt_spec_features].values)
+            .to(torch.float32)
+            .to(self.device)
+        )
+        z = (
+            torch.from_numpy(X_test.loc[:, self.socio_demo_chars].values)
+            .to(torch.float32)
+            .to(self.device)
+        )
         logits = self.model(x, z)
         binary_preds = torch.sigmoid(logits)
         label_pred = torch.sum(binary_preds > 0.5, axis=1)
-        preds = -torch.diff(binary_preds, dim=1, prepend=1, append=0)
+        preds = -torch.diff(
+            binary_preds,
+            dim=1,
+            prepend=torch.ones(x.shape[0], device=self.device)[:, None],
+            append=torch.zeros(x.shape[0], device=self.device)[:, None],
+        )
 
-        return preds.cpu().numpy(), binary_preds.cpu().numpy(), label_pred.cpu().numpy()
-    
-class TasteNet():
+        return preds.detach().cpu().numpy(), binary_preds.detach().cpu().numpy(), label_pred.detach().cpu().numpy()
+
+
+class TasteNet:
     """
     Wrapper class for TasteNet model.
     """
@@ -387,13 +405,14 @@ class TasteNet():
     def __init__(self, **kwargs):
 
         self.alt_spec_features = kwargs.get("alt_spec_features")
-        self.socio_demo_features = kwargs.get("socio_demo_features")
+        self.socio_demo_chars = kwargs.get("socio_demo_chars")
+        self.num_classes = kwargs.get("num_classes", 13)
 
         self.model = TasteNetBuild(
             kwargs.get("args"),
             len(self.alt_spec_features),
-            len(self.socio_demo_features),
-            kwargs.get("num_classes", 13),
+            len(self.socio_demo_chars),
+            self.num_classes,
         )
 
         self.batch_size = kwargs.get("args").batch_size
@@ -409,15 +428,11 @@ class TasteNet():
             self.optimiser,
             mode="min",
             factor=0.5,
-            patience=self.patience/2,
+            patience=self.patience / 2,
             verbose=True,
         )
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda")
-            self.model.to(self.device)
-        else:
-            self.device = torch.device("cpu")
-            self.model.to(self.device)
+        self.device = torch.device(kwargs.get("args").device)
+        self.model.to(self.device)
 
     def build_dataloader(
         self,
@@ -444,7 +459,7 @@ class TasteNet():
             X_train,
             y_train,
             self.alt_spec_features,
-            self.socio_demo_features,
+            self.socio_demo_chars,
         )
         self.train_dataloader = DataLoader(
             self.train_dataset,
@@ -457,7 +472,7 @@ class TasteNet():
                 X_valid,
                 y_valid,
                 self.alt_spec_features,
-                self.socio_demo_features,
+                self.socio_demo_chars,
             )
             self.valid_dataloader = DataLoader(
                 self.valid_dataset,
@@ -467,7 +482,6 @@ class TasteNet():
         else:
             self.valid_dataloader = None
             self.valid_dataset = None
-
 
     def fit(self):
         """
@@ -484,18 +498,20 @@ class TasteNet():
                 x = x.to(self.device)
                 y = y.to(self.device)
                 z = z.to(self.device)
-                classes = torch.arange(self.model.n_choices - 1).to(self.device)
-                levels = y[:, None] > classes[None, :]
+                classes = torch.arange(self.num_classes - 1).to(self.device)
+                levels = (y[:, None] > classes[None, :]).float()
 
                 self.optimiser.zero_grad()
-                output = self.model(x, z) #binary logits
+                output = self.model(x, z)  # binary logits
                 loss = self.criterion(output, levels)
                 loss.backward()
                 self.optimiser.step()
 
                 train_loss += loss.item()
                 if i % 100 == 0:
-                    print(f"Batch {i}/{int(len(self.train_dataloader)/self.batch_size)}, Loss: {loss.item()}")
+                    print(
+                        f"Batch {i}/{int(len(self.train_dataloader)/self.batch_size)}, Loss: {loss.item()}"
+                    )
             train_loss /= len(self.train_dataloader)
             print(f"Epoch {epoch + 1}/{self.num_epochs}, Training Loss: {train_loss}")
 
@@ -507,14 +523,16 @@ class TasteNet():
                         x = x.to(self.device)
                         y = y.to(self.device)
                         z = z.to(self.device)
-                        classes = torch.arange(self.model.n_choices - 1).to(self.device)
-                        levels = y[:, None] > classes[None, :]
+                        classes = torch.arange(self.num_classes - 1).to(self.device)
+                        levels = (y[:, None] > classes[None, :]).float()
 
-                        output = self.model(x, z) #binary logits
-                        val_loss += self.criterion(output, levels)
+                        output = self.model(x, z)  # binary logits
+                        val_loss += self.criterion(output, levels).item()
                 val_loss /= len(self.valid_dataloader)
                 self.scheduler.step(val_loss)
-                print(f"Epoch {epoch + 1}/{self.num_epochs}, Validation Loss: {val_loss.item()}")
+                print(
+                    f"Epoch {epoch + 1}/{self.num_epochs}, Validation Loss: {val_loss}"
+                )
 
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
@@ -527,8 +545,7 @@ class TasteNet():
                         print("Early stopping")
                         break
 
-
-        return best_loss.cpu().numpy(), best_val_loss.cpu().numpy() 
+        return best_loss, best_val_loss
 
     def save_model(self, path: str):
         """
@@ -572,11 +589,24 @@ class TasteNet():
             Predicted target variable, as labels.
         """
         self.model.eval()
-        x = torch.Tensor(X_test.loc[:, self.alt_spec_features]).to(self.device)
-        z = torch.Tensor(X_test.loc[:, self.socio_demo_features]).to(self.device)
+        x = (
+            torch.from_numpy(X_test.loc[:, self.alt_spec_features].values)
+            .to(torch.float32)
+            .to(self.device)
+        )
+        z = (
+            torch.from_numpy(X_test.loc[:, self.socio_demo_chars].values)
+            .to(torch.float32)
+            .to(self.device)
+        )
         logits = self.model(x, z)
         binary_preds = torch.sigmoid(logits)
         label_pred = torch.sum(binary_preds > 0.5, axis=1)
-        preds = -torch.diff(binary_preds, dim=1, prepend=1, append=0)
+        preds = -torch.diff(
+            binary_preds,
+            dim=1,
+            prepend=torch.ones(x.shape[0], device=self.device)[:, None],
+            append=torch.zeros(x.shape[0], device=self.device)[:, None],
+        )
 
-        return preds.cpu().numpy(), binary_preds.cpu().numpy(), label_pred.cpu().numpy()
+        return preds.detach().cpu().numpy(), binary_preds.detach().cpu().numpy(), label_pred.detach().cpu().numpy()

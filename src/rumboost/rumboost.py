@@ -2095,7 +2095,11 @@ class RUMBoost:
                     ),
                     "num_classes": self.num_classes,
                     "num_obs": self.num_obs,
-                    "labels": self.labels.cpu().numpy().tolist(),
+                    "labels": (
+                        self.labels.cpu().numpy().tolist()
+                        if self.labels is not None
+                        else None
+                    ),
                     "labels_j": labels_j_numpy,
                     "valid_labels": valid_labels_numpy,
                     "device": "cuda" if self.device.type == "cuda" else "cpu",
@@ -2147,7 +2151,7 @@ class RUMBoost:
                     ),
                     "num_classes": self.num_classes,
                     "num_obs": self.num_obs,
-                    "labels": self.labels.tolist(),
+                    "labels": self.labels.tolist() if self.labels is not None else None,
                     "labels_j": labels_j_list,
                     "valid_labels": valid_labs,
                     "device": None,
@@ -2538,6 +2542,10 @@ def rum_train(
     )
     if params["early_stopping_round"] is None:
         params["early_stopping_round"] = 10000
+    if "eval_func" in params:
+        eval_func = params.pop("eval_func")
+    else:
+        eval_func = None
     first_metric_only = params.get("first_metric_only", False)
 
     if num_boost_round <= 0:
@@ -3105,8 +3113,8 @@ def rum_train(
                 rumb.subsample_idx_valid = np.arange(rumb.num_obs[1])
 
     # setting up eval function
-    if "eval_func" in params:
-        rumb.eval_func = params["eval_func"]
+    if eval_func is not None:
+        rumb.eval_func = eval_func
     elif torch_tensors:
         if rumb.torch_compile:
             if rumb.num_classes == 2:
@@ -3310,11 +3318,11 @@ def rum_train(
         if optimise_ascs and ((i + 1) % optim_interval == 0):
             if rumb.device is not None:
                 raw_preds = (
-                    rumb.raw_preds.view(-1, rumb.num_obs[0])
-                    .T[rumb.subsample_idx, :]
+                    rumb.raw_preds.view(-1, rumb.num_obs[0]).T[
+                        rumb.subsample_idx, :
+                    ]
                     .cpu()
                     .numpy()
-                    .reshape((rumb.num_obs[0], -1), order="F")
                 )
                 labels = rumb.labels[rumb.subsample_idx].cpu().numpy()
                 ascs = rumb.asc.cpu().numpy()

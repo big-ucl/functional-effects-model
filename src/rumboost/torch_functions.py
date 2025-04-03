@@ -1354,10 +1354,11 @@ def mse_torch_compiled(preds, target):
         )
     return torch.mean((preds - target) ** 2).cpu().numpy()
 
+
 def coral_eval_torch(
-        preds,
-        labels,
-    ):
+    preds,
+    labels,
+):
     """
     Compute the coral evaluation function.
 
@@ -1377,17 +1378,28 @@ def coral_eval_torch(
         raise ImportError(
             "Pytorch is not installed. Please install it to run rumboost on torch tensors."
         )
-    sigmoids = - torch.cumsum(preds, dim=1)[:, :-1] + 1
-    classes = torch.arange(preds.shape[1], device=preds.device)
+    sigmoids = -torch.cumsum(preds, dim=1)[:, :-1] + 1
+    classes = torch.arange(preds.shape[1] - 1, device=preds.device)
     levels = labels[:, None] > classes[None, :]
 
-    return torch.mean(torch.mean(sigmoids * levels.float(), dim=1)).cpu().numpy()
+    return (
+        -torch.mean(
+            torch.mean(
+                torch.log(sigmoids) * levels.float()
+                + torch.log(1 - sigmoids) * (1 - levels.float()),
+                dim=1,
+            )
+        )
+        .cpu()
+        .numpy()
+    )
+
 
 @compile_decorator
 def coral_eval_torch_compiled(
-        preds,
-        labels,
-    ):
+    preds,
+    labels,
+):
     """
     Compute the coral evaluation function.
 
@@ -1407,8 +1419,18 @@ def coral_eval_torch_compiled(
         raise ImportError(
             "Pytorch is not installed. Please install it to run rumboost on torch tensors."
         )
-    sigmoids = - torch.cumsum(preds, dim=1)[:, :-1] + 1
-    classes = torch.arange(preds.shape[1], device=preds.device)
+    sigmoids = -torch.cumsum(preds, dim=1)[:, :-1] + 1
+    classes = torch.arange(preds.shape[1] - 1, device=preds.device)
     levels = labels[:, None] > classes[None, :]
 
-    return torch.mean(torch.mean(sigmoids * levels.float(), dim=1)).cpu().numpy()
+    return (
+        -torch.mean(
+            torch.mean(
+                torch.log(sigmoids) * levels.float()
+                + torch.log(1 - sigmoids) * (1 - levels.float()),
+                dim=1,
+            )
+        )
+        .cpu()
+        .numpy()
+    )
