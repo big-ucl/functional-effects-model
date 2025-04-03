@@ -25,8 +25,6 @@ def train(args):
     # load the data
     data = pd.read_csv(PATH_TO_DATA)
 
-    data = data.iloc[:10000, :]
-
     features = [
         col
         for col in data.columns

@@ -271,12 +271,14 @@ class ResLogit:
         """
         Fits the model to the training data.
         """
+        self.model.train()
+
+        best_loss = 1e10
+        best_val_loss = 1e10
+        patience_counter = 0
+
         for epoch in range(self.num_epochs):
-            self.model.train()
             train_loss = 0
-            best_loss = 1e10
-            best_val_loss = 1e10
-            patience_counter = 0
 
             for i, (x, y, z) in enumerate(self.train_dataloader):
                 x = x.to(self.device)
@@ -293,12 +295,11 @@ class ResLogit:
                 self.optimiser.step()
 
                 train_loss += loss.item()
-                if i % 100 == 0:
+                if i % 50 == 0:
                     print(
-                        f"Batch {i}/{int(len(self.train_dataloader)/self.batch_size)}, Loss: {loss.item()}"
+                        f"--- Batch {i}/{len(self.train_dataloader)}, loss: {loss.item():.4f}"
                     )
             train_loss /= len(self.train_dataloader)
-            print(f"Epoch {epoch + 1}/{self.num_epochs}, Training Loss: {train_loss}")
 
             if self.valid_dataloader is not None:
                 val_loss = 0
@@ -316,7 +317,7 @@ class ResLogit:
                 val_loss /= len(self.valid_dataloader)
                 self.scheduler.step(val_loss)
                 print(
-                    f"Epoch {epoch + 1}/{self.num_epochs}, Validation Loss: {val_loss}"
+                    f"Epoch {epoch + 1}/{self.num_epochs}: train loss = {train_loss:.4f}, val. loss: {val_loss:.4f}"
                 )
 
                 if val_loss < best_val_loss:
@@ -329,6 +330,9 @@ class ResLogit:
                     if patience_counter >= self.patience:
                         print("Early stopping")
                         break
+        
+        if hasattr(self, "best_model"):
+            self.model = self.best_model
 
         return best_loss, best_val_loss
 
@@ -487,12 +491,14 @@ class TasteNet:
         """
         Fits the model to the training data.
         """
+        self.model.train()
+
+        best_loss = 1e10
+        best_val_loss = 1e10
+        patience_counter = 0
+
         for epoch in range(self.num_epochs):
-            self.model.train()
             train_loss = 0
-            best_loss = 1e10
-            best_val_loss = 1e10
-            patience_counter = 0
 
             for i, (x, y, z) in enumerate(self.train_dataloader):
                 x = x.to(self.device)
@@ -508,9 +514,9 @@ class TasteNet:
                 self.optimiser.step()
 
                 train_loss += loss.item()
-                if i % 100 == 0:
+                if i % 50 == 0:
                     print(
-                        f"Batch {i}/{int(len(self.train_dataloader)/self.batch_size)}, Loss: {loss.item()}"
+                        f"--- Batch {i}/{len(self.train_dataloader)}, loss: {loss.item():.4f}"
                     )
             train_loss /= len(self.train_dataloader)
             print(f"Epoch {epoch + 1}/{self.num_epochs}, Training Loss: {train_loss}")
@@ -531,7 +537,7 @@ class TasteNet:
                 val_loss /= len(self.valid_dataloader)
                 self.scheduler.step(val_loss)
                 print(
-                    f"Epoch {epoch + 1}/{self.num_epochs}, Validation Loss: {val_loss}"
+                    f"Epoch {epoch + 1}/{self.num_epochs}: train loss = {train_loss:.4f}, val. loss: {val_loss:.4f}"
                 )
 
                 if val_loss < best_val_loss:
@@ -544,6 +550,9 @@ class TasteNet:
                     if patience_counter >= self.patience:
                         print("Early stopping")
                         break
+
+        if hasattr(self, "best_model"):
+            self.model = self.best_model
 
         return best_loss, best_val_loss
 

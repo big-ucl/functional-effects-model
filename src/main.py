@@ -24,3 +24,6 @@ def main(raw_args = None):
     # Train the model
     train(args=args)
 
+if __name__ == "__main__":
+    main()
+
