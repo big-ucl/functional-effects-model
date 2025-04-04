@@ -17,8 +17,7 @@ class TasteNet(nn.Module):
     def __init__(self, args, num_alt_features, num_sd_chars, num_classes):
         super(TasteNet, self).__init__()
 
-        args.layer_sizes.insert(0, num_sd_chars) # input layer size is the number of socio-demographic variables
-        args.layer_sizes.append(1) # output layer size is the number of classes
+        print(type(args.layer_sizes))
 
         self.params_module = TasteParams(args.layer_sizes, args)
         self.util_module = Utility(args, num_alt_features)
@@ -73,11 +72,18 @@ class TasteParams(nn.Module):
     Network for tastes
     '''
     def __init__(self, layer_sizes, args):
+        """Initialize the TasteParams class.
+        Args:
+        layer_sizes (list[tuple]): list of layer sizes in a tuple.
+        args (argparse.Namespace): command line arguments.
+        """
         super(TasteParams, self).__init__()
         self.seq = nn.Sequential()
-        for i, (in_size, out_size) in enumerate(zip(layer_sizes[:-1], layer_sizes[1:])):
+        for i, (in_size, out_size) in enumerate(zip(layer_sizes[0][:-1], layer_sizes[0][1:])):
+
             self.seq.add_module(name=f"L{i+1}", module=nn.Linear(in_size, out_size, bias=True))
-            self.seq.add_module(name=f"A{i+1}", module=get_act(args.act_func))
+            if i < len(layer_sizes) - 2:
+                self.seq.add_module(name=f"A{i+1}", module=get_act(args.act_func))
             if args.dropout > 0:
                 self.seq.add_module(name=f"D{i+1}", module=nn.Dropout(args.dropout))
             if args.batch_norm:

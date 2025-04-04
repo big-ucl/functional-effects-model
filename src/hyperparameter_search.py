@@ -9,6 +9,7 @@ from helper import set_all_seeds
 from utils import split_dataset, compute_metrics
 from constants import PATH_TO_DATA_TRAIN, PATH_TO_FOLDS, alt_spec_features
 from models_wrapper import RUMBoost, ResLogit, TasteNet
+from parser import parse_cmdline_args
 
 
 def objective(trial, model):
@@ -20,8 +21,7 @@ def objective(trial, model):
     data = pd.read_csv(PATH_TO_DATA_TRAIN)
 
     with open(PATH_TO_FOLDS, "rb") as f:
-        train_idx, val_idx = pickle.load(f)
-        folds = zip(train_idx, val_idx)
+        folds = pickle.load(f)
 
     features = [
         col
@@ -39,9 +39,12 @@ def objective(trial, model):
         and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
     ]
 
+    #default args
+    args = parse_cmdline_args()
+
     if model == "RUMBoost":
         # parameters for RUMBoost
-        args = {
+        dict_args = {
             "model_type": "coral",
             "optim_interval": 20,
             "num_iterations": 3000,
@@ -65,14 +68,15 @@ def objective(trial, model):
                 "min_gain_to_split", 1e-8, 10.0, log=True
             ),
         }
+        args.__dict__.update(dict_args)
         model = RUMBoost(
             alt_spec_features=alt_spec_features,
             socio_demo_chars=socio_demo_chars,
             num_classes=13,
             args=args,
         )
-    elif args.model == "ResLogit":
-        args = {
+    elif model == "ResLogit":
+        dict_args = {
             "num_epochs": 200,
             "batch_size": trial.suggest_int("batch_size", 16, 256, step=16),
             "learning_rate": trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True),
@@ -80,14 +84,15 @@ def objective(trial, model):
             "n_layers": trial.suggest_int("n_layers", 1, 32),
             "device": "cuda",
         }
+        args.__dict__.update(dict_args)
         model = ResLogit(
             alt_spec_features=alt_spec_features,
             socio_demo_chars=socio_demo_chars,
             num_classes=13,
             args=args,
         )
-    elif args.model == "TasteNet":
-        args = {
+    elif model == "TasteNet":
+        dict_args = {
             "num_epochs": 200,
             "batch_size": trial.suggest_int("batch_size", 16, 256, step=16),
             "learning_rate": trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True),
@@ -103,17 +108,18 @@ def objective(trial, model):
                 trial.suggest_categorical(
                     "layer_sizes",
                     [
-                        [64],
-                        [128],
-                        [64, 64],
-                        [128, 128],
-                        [64, 128],
-                        [128, 64],
-                        [64, 128, 64],
+                        (65, 64, 1),
+                        (65, 128, 1),
+                        (65, 64, 64, 1),
+                        (65, 128, 128, 1),
+                        (65, 64, 128, 1),
+                        (65, 128, 64, 1),
+                        (65, 64, 128, 64, 1),
                     ],
                 ),
             ],
         }
+        args.__dict__.update(dict_args)
         model = TasteNet(
             alt_spec_features=alt_spec_features,
             socio_demo_chars=socio_demo_chars,
@@ -172,6 +178,6 @@ if __name__ == "__main__":
         with open(f"results/{model}/best_params.pkl", "wb") as f:
             pickle.dump(best_params, f)
 
-        with open(f"results/{model}/hyper_search_info.txt", "wb") as f:
+        with open(f"results/{model}/hyper_search_info.txt", "w") as f:
             f.write(f"Best value: {best_value}\n")
             f.write(f"Optimisation time: {optimisation_time}\n")

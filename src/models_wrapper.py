@@ -29,55 +29,61 @@ class RUMBoost:
 
     def __init__(self, **kwargs):
         # generate rum structure
-        self.rum_structure = generate_rum_structure(
-            kwargs.get("alt_spec_features"), kwargs.get("socio_demo_chars")
-        )
+        if (
+            kwargs.get("alt_spec_features") is not None
+            or kwargs.get("socio_demo_chars") is not None
+        ):
+            # if alt_spec_features or socio_demo_chars are not None, generate rum structure
+            self.rum_structure = generate_rum_structure(
+                kwargs.get("alt_spec_features"), kwargs.get("socio_demo_chars")
+            )
 
-        # generate ordinal spec
-        ordinal_spec = generate_ordinal_spec(
-            model_type=kwargs.get("args").model_type,
-            optim_interval=kwargs.get("args").optim_interval,
-        )
+        if "args" in kwargs:
+            # generate ordinal spec
+            ordinal_spec = generate_ordinal_spec(
+                model_type=kwargs.get("args").model_type,
+                optim_interval=kwargs.get("args").optim_interval,
+            )
 
-        # generate general params
-        general_params = generate_general_params(
-            num_classes=kwargs.get("num_classes", 13),
-            num_iterations=kwargs.get("args").num_iterations,
-            early_stopping_rounds=kwargs.get("args").early_stopping_rounds,
-            verbose=kwargs.get("args").verbose,
-            verbose_interval=kwargs.get("args").verbose_interval,
-        )
+            # generate general params
+            general_params = generate_general_params(
+                num_classes=kwargs.get("num_classes", 13),
+                num_iterations=kwargs.get("args").num_iterations,
+                early_stopping_rounds=kwargs.get("args").early_stopping_rounds,
+                verbose=kwargs.get("args").verbose,
+                verbose_interval=kwargs.get("args").verbose_interval,
+            )
 
-        # add hyperparameters
-        hyperparameters = {
-            "num_leaves": kwargs.get("args").num_leaves,
-            "min_gain_to_split": kwargs.get("args").min_gain_to_split,
-            "min_sum_hessian_in_leaf": kwargs.get("args").min_sum_hessian_in_leaf,
-            "learning_rate": kwargs.get("args").learning_rate,
-            "max_bin": kwargs.get("args").max_bin,
-            "min_data_in_bin": kwargs.get("args").min_data_in_bin,
-            "min_data_in_leaf": kwargs.get("args").min_data_in_leaf,
-            "feature_fraction": kwargs.get("args").feature_fraction,
-            "bagging_fraction": kwargs.get("args").bagging_fraction,
-            "bagging_freq": kwargs.get("args").bagging_freq,
-            "lambda_l1": kwargs.get("args").lambda_l1,
-            "lambda_l2": kwargs.get("args").lambda_l2,
-        }
-        self.rum_structure[-1] = add_hyperparameters(
-            self.rum_structure[-1], hyperparameters
-        )
+            # add hyperparameters
+            hyperparameters = {
+                "num_leaves": kwargs.get("args").num_leaves,
+                "min_gain_to_split": kwargs.get("args").min_gain_to_split,
+                "min_sum_hessian_in_leaf": kwargs.get("args").min_sum_hessian_in_leaf,
+                "learning_rate": kwargs.get("args").learning_rate,
+                "max_bin": kwargs.get("args").max_bin,
+                "min_data_in_bin": kwargs.get("args").min_data_in_bin,
+                "min_data_in_leaf": kwargs.get("args").min_data_in_leaf,
+                "feature_fraction": kwargs.get("args").feature_fraction,
+                "bagging_fraction": kwargs.get("args").bagging_fraction,
+                "bagging_freq": kwargs.get("args").bagging_freq,
+                "lambda_l1": kwargs.get("args").lambda_l1,
+                "lambda_l2": kwargs.get("args").lambda_l2,
+            }
+            self.rum_structure[-1] = add_hyperparameters(
+                self.rum_structure[-1], hyperparameters
+            )
 
-        self.model_spec = {
-            "rum_structure": self.rum_structure,
-            "general_params": general_params,
-            "ordinal_logit": ordinal_spec,
-        }
+            self.model_spec = {
+                "rum_structure": self.rum_structure,
+                "general_params": general_params,
+                "ordinal_logit": ordinal_spec,
+            }
 
-        # using gpu or not
-        if kwargs.get("args").device == "cuda":
-            self.torch_tensors = {"device": "cuda"}
-        else:
-            self.torch_tensors = None
+            # using gpu or not
+            if kwargs.get("args").device == "cuda":
+                self.torch_tensors = {"device": "cuda"}
+            else:
+                self.torch_tensors = None
 
     def build_dataloader(
         self,
@@ -189,36 +195,37 @@ class ResLogit:
     """
 
     def __init__(self, **kwargs):
-        self.alt_spec_features = kwargs.get("alt_spec_features")
-        self.socio_demo_chars = kwargs.get("socio_demo_chars")
+        if "args" in kwargs:
+            self.alt_spec_features = kwargs.get("alt_spec_features")
+            self.socio_demo_chars = kwargs.get("socio_demo_chars")
 
-        self.model = OrdinalResLogit(
-            kwargs.get("num_classes", 13),
-            self.alt_spec_features,
-            self.socio_demo_chars,
-            kwargs.get("args").n_layers,
-            kwargs.get("args").batch_size,
-        )
+            self.model = OrdinalResLogit(
+                kwargs.get("num_classes", 13),
+                self.alt_spec_features,
+                self.socio_demo_chars,
+                kwargs.get("args").n_layers,
+                kwargs.get("args").batch_size,
+            )
 
-        self.batch_size = kwargs.get("args").batch_size
-        self.num_epochs = kwargs.get("args").num_epochs
-        self.patience = kwargs.get("args").patience
+            self.batch_size = kwargs.get("args").batch_size
+            self.num_epochs = kwargs.get("args").num_epochs
+            self.patience = kwargs.get("args").patience
 
-        self.optimiser = torch.optim.Adam(
-            self.model.parameters(),
-            lr=kwargs.get("args").learning_rate,
-        )
-        self.criterion = torch.nn.BCEWithLogitsLoss()
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimiser,
-            mode="min",
-            factor=0.5,
-            patience=self.patience / 2,
-            verbose=True,
-        )
+            self.optimiser = torch.optim.Adam(
+                self.model.parameters(),
+                lr=kwargs.get("args").learning_rate,
+            )
+            self.criterion = torch.nn.BCEWithLogitsLoss()
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                self.optimiser,
+                mode="min",
+                factor=0.5,
+                patience=self.patience / 2,
+                verbose=True,
+            )
 
-        self.device = torch.device(kwargs.get("args").device)
-        self.model.to(self.device)
+            self.device = torch.device(kwargs.get("args").device)
+            self.model.to(self.device)
 
     def build_dataloader(
         self,
@@ -333,7 +340,7 @@ class ResLogit:
                     if patience_counter >= self.patience:
                         print("Early stopping")
                         break
-        
+
         if hasattr(self, "best_model"):
             self.model = self.best_model
 
@@ -346,9 +353,9 @@ class ResLogit:
         Parameters
         ----------
         path : str
-            Path to save the model.
+            Path to save the model. Extension should be .pth.
         """
-        torch.save(self.model.state_dict(), path)
+        torch.save(self.model, path)
 
     def load_model(self, path: str):
         """
@@ -359,7 +366,7 @@ class ResLogit:
         path : str
             Path to load the model from.
         """
-        self.model.load_state_dict(torch.load(path))
+        self.model = torch.load(path, weights_only=False)
         self.model.eval()
 
     def predict(self, X_test: pd.DataFrame) -> np.array:
@@ -401,7 +408,11 @@ class ResLogit:
             append=torch.zeros(x.shape[0], device=self.device)[:, None],
         )
 
-        return preds.detach().cpu().numpy(), binary_preds.detach().cpu().numpy(), label_pred.detach().cpu().numpy()
+        return (
+            preds.detach().cpu().numpy(),
+            binary_preds.detach().cpu().numpy(),
+            label_pred.detach().cpu().numpy(),
+        )
 
 
 class TasteNet:
@@ -411,35 +422,36 @@ class TasteNet:
 
     def __init__(self, **kwargs):
 
-        self.alt_spec_features = kwargs.get("alt_spec_features")
-        self.socio_demo_chars = kwargs.get("socio_demo_chars")
-        self.num_classes = kwargs.get("num_classes", 13)
+        if "args" in kwargs:
+            self.alt_spec_features = kwargs.get("alt_spec_features")
+            self.socio_demo_chars = kwargs.get("socio_demo_chars")
+            self.num_classes = kwargs.get("num_classes", 13)
 
-        self.model = TasteNetBuild(
-            kwargs.get("args"),
-            len(self.alt_spec_features),
-            len(self.socio_demo_chars),
-            self.num_classes,
-        )
+            self.model = TasteNetBuild(
+                kwargs.get("args"),
+                len(self.alt_spec_features),
+                len(self.socio_demo_chars),
+                self.num_classes,
+            )
 
-        self.batch_size = kwargs.get("args").batch_size
-        self.num_epochs = kwargs.get("args").num_epochs
-        self.patience = kwargs.get("args").patience
+            self.batch_size = kwargs.get("args").batch_size
+            self.num_epochs = kwargs.get("args").num_epochs
+            self.patience = kwargs.get("args").patience
 
-        self.optimiser = torch.optim.Adam(
-            self.model.parameters(),
-            lr=kwargs.get("args").learning_rate,
-        )
-        self.criterion = torch.nn.BCEWithLogitsLoss()
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimiser,
-            mode="min",
-            factor=0.5,
-            patience=self.patience / 2,
-            verbose=True,
-        )
-        self.device = torch.device(kwargs.get("args").device)
-        self.model.to(self.device)
+            self.optimiser = torch.optim.Adam(
+                self.model.parameters(),
+                lr=kwargs.get("args").learning_rate,
+            )
+            self.criterion = torch.nn.BCEWithLogitsLoss()
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                self.optimiser,
+                mode="min",
+                factor=0.5,
+                patience=self.patience / 2,
+                verbose=True,
+            )
+            self.device = torch.device(kwargs.get("args").device)
+            self.model.to(self.device)
 
     def build_dataloader(
         self,
@@ -522,7 +534,6 @@ class TasteNet:
                         f"--- Batch {i}/{len(self.train_dataloader)}, loss: {loss.item():.4f}"
                     )
             train_loss /= len(self.train_dataloader)
-            print(f"Epoch {epoch + 1}/{self.num_epochs}, Training Loss: {train_loss}")
 
             if self.valid_dataloader is not None:
                 val_loss = 0
@@ -567,9 +578,9 @@ class TasteNet:
         Parameters
         ----------
         path : str
-            Path to save the model.
+            Path to save the model. Extension should be .pth.
         """
-        torch.save(self.model.state_dict(), path)
+        torch.save(self.model, path)
 
     def load_model(self, path: str):
         """
@@ -580,7 +591,7 @@ class TasteNet:
         path : str
             Path to load the model from.
         """
-        self.model.load_state_dict(torch.load(path))
+        self.model = torch.load(path, weights_only=False)
         self.model.eval()
 
     def predict(self, X_test: pd.DataFrame) -> np.array:
@@ -622,4 +633,8 @@ class TasteNet:
             append=torch.zeros(x.shape[0], device=self.device)[:, None],
         )
 
-        return preds.detach().cpu().numpy(), binary_preds.detach().cpu().numpy(), label_pred.detach().cpu().numpy()
+        return (
+            preds.detach().cpu().numpy(),
+            binary_preds.detach().cpu().numpy(),
+            label_pred.detach().cpu().numpy(),
+        )

@@ -81,7 +81,7 @@ def train(args):
 
     if args.model == "RUMBoost":
         if args.optimal_hyperparams:
-            args.num_iterations = optimal_hyperparams["best_iteration"]
+            args.num_iterations = int(optimal_hyperparams["best_iteration"])
             args.early_stopping_rounds = None
         model = RUMBoost(
             alt_spec_features=alt_spec_features,
@@ -91,21 +91,27 @@ def train(args):
         )
         save_path = args.outpath + "model.json"
     elif args.model == "ResLogit":
+        if args.optimal_hyperparams:
+            args.num_epochs = int(optimal_hyperparams["best_iteration"])
+            args.patience = args.num_epochs
         model = ResLogit(
             alt_spec_features=alt_spec_features,
             socio_demo_chars=socio_demo_chars,
             num_classes=13,
             args=args,
         )
-        save_path = args.outpath + "model.pkl"
+        save_path = args.outpath + "model.pth"
     elif args.model == "TasteNet":
+        if args.optimal_hyperparams:
+            args.num_epochs = int(optimal_hyperparams["best_iteration"])
+            args.patience = args.num_epochs
         model = TasteNet(
             alt_spec_features=alt_spec_features,
             socio_demo_chars=socio_demo_chars,
             num_classes=13,
             args=args,
         )
-        save_path = args.outpath + "model.pkl"
+        save_path = args.outpath + "model.pth"
 
     model.build_dataloader(X_train, y_train, X_val, y_val)
 

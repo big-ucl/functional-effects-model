@@ -147,6 +147,7 @@ def generate_general_params(num_classes: int, **kwargs) -> Dict[str, Any]:
     # general parameters
     general_params = {
         "num_classes": num_classes,
+        "max_booster_to_update": 2,
     }
 
     # update the general parameters with the kwargs

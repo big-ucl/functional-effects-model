@@ -182,7 +182,7 @@ def parse_cmdline_args(raw_args=None, parser=None):
         "--layer_sizes",
         type=int,
         nargs="+",
-        default=[128, 64],
+        default=[(65, 128, 64, 1)],
         help="Layer sizes for the model",
     )
     parser.add_argument(
@@ -209,7 +209,6 @@ def parse_cmdline_args(raw_args=None, parser=None):
         "--model",
         type=str,
         default="RUMBoost",
-        required=True,
         help="Model to train",
         choices=["RUMBoost", "ResLogit", "TasteNet"],
     )
