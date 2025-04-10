@@ -35,10 +35,19 @@ class RUMBoost:
         ):
             # if alt_spec_features or socio_demo_chars are not None, generate rum structure
             self.rum_structure = generate_rum_structure(
-                kwargs.get("alt_spec_features"), kwargs.get("socio_demo_chars")
+                kwargs.get("alt_spec_features"),
+                kwargs.get("socio_demo_chars"),
+                kwargs.get("args").functional_intercept,
+                kwargs.get("args").functional_params,
             )
 
         if "args" in kwargs:
+
+            num_boosters = kwargs.get(
+                "args"
+            ).functional_intercept + kwargs.get("args").functional_params * len(
+                kwargs.get("socio_demo_chars")
+            )
             # generate ordinal spec
             ordinal_spec = generate_ordinal_spec(
                 model_type=kwargs.get("args").model_type,
@@ -53,6 +62,13 @@ class RUMBoost:
                 verbose=kwargs.get("args").verbose,
                 verbose_interval=kwargs.get("args").verbose_interval,
             )
+
+            if kwargs.get("args").functional_params:
+                boost_from_param_space = [True] * num_boosters
+                if kwargs.get("args").functional_intercept:
+                    boost_from_param_space[-1] = False
+                
+                general_params["boost_from_parameter_space"] = boost_from_param_space
 
             # add hyperparameters
             hyperparameters = {
@@ -69,8 +85,8 @@ class RUMBoost:
                 "lambda_l1": kwargs.get("args").lambda_l1,
                 "lambda_l2": kwargs.get("args").lambda_l2,
             }
-            self.rum_structure[-1] = add_hyperparameters(
-                self.rum_structure[-1], hyperparameters
+            self.rum_structure[-num_boosters:] = add_hyperparameters(
+                self.rum_structure[-num_boosters:], hyperparameters
             )
 
             self.model_spec = {
@@ -189,232 +205,6 @@ class RUMBoost:
         self.model = load_rumboost(model_file=path)
 
 
-class ResLogit:
-    """
-    Wrapper class for Ordinal ResLogit model.
-    """
-
-    def __init__(self, **kwargs):
-        if "args" in kwargs:
-            self.alt_spec_features = kwargs.get("alt_spec_features")
-            self.socio_demo_chars = kwargs.get("socio_demo_chars")
-
-            self.model = OrdinalResLogit(
-                kwargs.get("num_classes", 13),
-                self.alt_spec_features,
-                self.socio_demo_chars,
-                kwargs.get("args").n_layers,
-                kwargs.get("args").batch_size,
-            )
-
-            self.batch_size = kwargs.get("args").batch_size
-            self.num_epochs = kwargs.get("args").num_epochs
-            self.patience = kwargs.get("args").patience
-
-            self.optimiser = torch.optim.Adam(
-                self.model.parameters(),
-                lr=kwargs.get("args").learning_rate,
-            )
-            self.criterion = torch.nn.BCEWithLogitsLoss()
-            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.optimiser,
-                mode="min",
-                factor=0.5,
-                patience=self.patience / 2,
-                verbose=True,
-            )
-
-            self.device = torch.device(kwargs.get("args").device)
-            self.model.to(self.device)
-
-    def build_dataloader(
-        self,
-        X_train: pd.DataFrame,
-        y_train: pd.Series,
-        X_valid: pd.DataFrame = None,
-        y_valid: pd.Series = None,
-    ):
-        """
-        Builds and stores the LightGBM dataset.
-
-        Parameters
-        ----------
-        X_train : pd.DataFrame
-            Training features.
-        y_train : pd.Series
-            Training target variable.
-        X_valid : pd.DataFrame, optional
-            Validation features. The default is None.
-        y_valid : pd.Series, optional
-            Validation target variable. The default is None.
-        """
-        self.train_dataset = ResLogitDataset(
-            X_train,
-            y_train,
-            self.alt_spec_features,
-            self.socio_demo_chars,
-        )
-        self.train_dataloader = DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            shuffle=True,
-        )
-
-        if X_valid is not None and y_valid is not None:
-            self.valid_dataset = ResLogitDataset(
-                X_valid,
-                y_valid,
-                self.alt_spec_features,
-                self.socio_demo_chars,
-            )
-            self.valid_dataloader = DataLoader(
-                self.valid_dataset,
-                batch_size=self.batch_size,
-                shuffle=False,
-            )
-        else:
-            self.valid_dataloader = None
-            self.valid_dataset = None
-
-    def fit(self):
-        """
-        Fits the model to the training data.
-        """
-        self.model.train()
-
-        best_loss = 1e10
-        best_val_loss = 1e10
-        patience_counter = 0
-
-        for epoch in range(self.num_epochs):
-            train_loss = 0
-
-            for i, (x, y, z) in enumerate(self.train_dataloader):
-                x = x.to(self.device)
-                y = y.to(self.device)
-                z = z.to(self.device)
-                classes = torch.arange(self.model.n_choices - 1).to(self.device)
-                levels = (y[:, None] > classes[None, :]).float()
-
-                self.optimiser.zero_grad()
-
-                output = self.model(x, z)  # binary logits
-                loss = self.criterion(output, levels)
-                loss.backward()
-                self.optimiser.step()
-
-                train_loss += loss.item()
-                if i % 50 == 0:
-                    print(
-                        f"--- Batch {i}/{len(self.train_dataloader)}, loss: {loss.item():.4f}"
-                    )
-            train_loss /= len(self.train_dataloader)
-
-            if self.valid_dataloader is not None:
-                val_loss = 0
-                self.model.eval()
-                with torch.no_grad():
-                    for i, (x, y, z) in enumerate(self.valid_dataloader):
-                        x = x.to(self.device)
-                        y = y.to(self.device)
-                        z = z.to(self.device)
-                        classes = torch.arange(self.model.n_choices - 1).to(self.device)
-                        levels = (y[:, None] > classes[None, :]).float()
-
-                        output = self.model(x, z)  # binary logits
-                        val_loss += self.criterion(output, levels).item()
-                val_loss /= len(self.valid_dataloader)
-                self.scheduler.step(val_loss)
-                print(
-                    f"Epoch {epoch + 1}/{self.num_epochs}: train loss = {train_loss:.4f}, val. loss: {val_loss:.4f}"
-                )
-
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    best_loss = train_loss
-                    self.best_model = copy.deepcopy(self.model)
-                    self.best_iteration = epoch + 1
-                    patience_counter = 0
-                else:
-                    patience_counter += 1
-                    if patience_counter >= self.patience:
-                        print("Early stopping")
-                        break
-
-        if hasattr(self, "best_model"):
-            self.model = self.best_model
-
-        return best_loss, best_val_loss
-
-    def save_model(self, path: str):
-        """
-        Saves the model to the specified path.
-
-        Parameters
-        ----------
-        path : str
-            Path to save the model. Extension should be .pth.
-        """
-        torch.save(self.model, path)
-
-    def load_model(self, path: str):
-        """
-        Loads the model from the specified path.
-
-        Parameters
-        ----------
-        path : str
-            Path to load the model from.
-        """
-        self.model = torch.load(path, weights_only=False)
-        self.model.eval()
-
-    def predict(self, X_test: pd.DataFrame) -> np.array:
-        """ "
-        Predicts the target variable for the test set."
-
-        Parameters
-        ----------
-        X_test : lgb.Dataset
-            Test set.
-
-        Returns
-        -------
-        preds : np.array
-            Predicted target variable, as probabilities.
-        binary_preds : np.array
-            The binary probabilities of the target being bigger than each level.
-        label_pred : np.array
-            Predicted target variable, as labels.
-        """
-        self.model.eval()
-        x = (
-            torch.from_numpy(X_test.loc[:, self.alt_spec_features].values)
-            .to(torch.float32)
-            .to(self.device)
-        )
-        z = (
-            torch.from_numpy(X_test.loc[:, self.socio_demo_chars].values)
-            .to(torch.float32)
-            .to(self.device)
-        )
-        logits = self.model(x, z)
-        binary_preds = torch.sigmoid(logits)
-        label_pred = torch.sum(binary_preds > 0.5, axis=1)
-        preds = -torch.diff(
-            binary_preds,
-            dim=1,
-            prepend=torch.ones(x.shape[0], device=self.device)[:, None],
-            append=torch.zeros(x.shape[0], device=self.device)[:, None],
-        )
-
-        return (
-            preds.detach().cpu().numpy(),
-            binary_preds.detach().cpu().numpy(),
-            label_pred.detach().cpu().numpy(),
-        )
-
-
 class TasteNet:
     """
     Wrapper class for TasteNet model.
@@ -426,12 +216,14 @@ class TasteNet:
             self.alt_spec_features = kwargs.get("alt_spec_features")
             self.socio_demo_chars = kwargs.get("socio_demo_chars")
             self.num_classes = kwargs.get("num_classes", 13)
+            self.num_latent_vals = kwargs.get("num_latent_vals", 1)
 
             self.model = TasteNetBuild(
                 kwargs.get("args"),
                 len(self.alt_spec_features),
                 len(self.socio_demo_chars),
                 self.num_classes,
+                self.num_latent_vals,
             )
 
             self.batch_size = kwargs.get("args").batch_size

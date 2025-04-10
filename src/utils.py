@@ -23,6 +23,8 @@ TrainTestSplit = Union[
 def generate_rum_structure(
     alt_spec_features: Optional[List[str]] = None,
     socio_demo_chars: Optional[List[str]] = None,
+    functional_intercept: Optional[bool] = False,
+    functional_params: Optional[bool] = False,
 ) -> List[Dict[str, Any]]:
     """
     Generate the rum structure for the given dataset. Note that this code is written for a single alternative (i.e. regression or ordinal regression problem).
@@ -33,6 +35,10 @@ def generate_rum_structure(
         The alternative-specific features to be used in the rum structure.
     socio_demo_chars: Optional[List[str]]
         The socio-demographic characteristics to be used in the rum structure. They will represent the individual-specific constant learnt from the data.
+    functional_intercept: Optional[bool]
+        Whether to use the functional intercept or not. The default is False.
+    functional_params: Optional[bool]
+        Whether to use the functional parameters or not. The default is False.
 
     Returns
     -------
@@ -40,15 +46,12 @@ def generate_rum_structure(
         The rum structure for the dataset.
 
     """
-    assert (
-        alt_spec_features or socio_demo_chars
-    ), "At least one alternative-specific feature or socio-demographic characteristics must be provided."
 
     # initialise rum_structure
     rum_structure = []
 
     # alternative-specific features, one per ensemble
-    if alt_spec_features:
+    if not functional_params:
         monotone_constraints = [0] * len(alt_spec_features)
         interaction_constraints = [list(range(len(alt_spec_features)))]
         rum_structure_as = [
@@ -66,12 +69,30 @@ def generate_rum_structure(
                 "shared": False
             }
         ]
-
         # add the alternative-specific features to the rum_structure
         rum_structure.extend(rum_structure_as)
+    else:
+        # if functional parameters are used, add them to the rum_structure
+        rum_structure_params = [
+            {
+                "variables": socio_demo_chars,
+                "utility": [0],
+                "boosting_params": {
+                    "monotone_constraints_method": "advanced",
+                    "n_jobs": -1,
+                    "learning_rate": 0.1,
+                    "monotone_constraints": [0],
+                },
+                "shared": True,
+                "endogenous_variable": f
+            }
+            for f in alt_spec_features
+        ]
+        # add the functional parameters to the rum_structure
+        rum_structure.extend(rum_structure_params)
 
     # socio-demographic characteristics, all in one ensemble
-    if socio_demo_chars:
+    if functional_intercept:
         rum_structure_sd = [
             {
                 "variables": socio_demo_chars,
@@ -80,13 +101,6 @@ def generate_rum_structure(
                     "monotone_constraints_method": "advanced",
                     "n_jobs": -1,
                     "learning_rate": 0.1,
-                    "monotone_constraints": [
-                        0,
-                    ]
-                    * len(socio_demo_chars),
-                    "interaction_constraints": [
-                        list(range(len(socio_demo_chars))),
-                    ],
                 },
                 "shared": False,
             }
@@ -100,7 +114,7 @@ def generate_rum_structure(
 
 
 def add_hyperparameters(
-    struct: Dict[str, Any],
+    rum_struct: List[Dict[str, Any]],
     hyperparameters: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
@@ -108,7 +122,7 @@ def add_hyperparameters(
 
     Parameters
     ----------
-    struct: Dict[str, Any]
+    rum_struct: List[Dict[str, Any]]
         The rum structure to be modified.
     hyperparameters: Dict[str, Any]
         The hyperparameters to be added to the rum structure.
@@ -119,10 +133,11 @@ def add_hyperparameters(
         The modified rum structure with the hyperparameters added.
 
     """
-    # add the hyperparameters to the rum structure
-    struct["boosting_params"].update(hyperparameters)
+    for struct in rum_struct:
+        # add the hyperparameters to the rum structure
+        struct["boosting_params"].update(hyperparameters)
 
-    return struct
+    return rum_struct
 
 
 def generate_general_params(num_classes: int, **kwargs) -> Dict[str, Any]:

@@ -182,7 +182,7 @@ def parse_cmdline_args(raw_args=None, parser=None):
         "--layer_sizes",
         type=int,
         nargs="+",
-        default=[(65, 128, 64, 1)],
+        default=[128, 64],
         help="Layer sizes for the model",
     )
     parser.add_argument(
@@ -226,6 +226,26 @@ def parse_cmdline_args(raw_args=None, parser=None):
         help="Use optimal hyperparameters for the model",
         choices=["true", "false"],
     )
+    parser.add_argument(
+        "--functional_intercept",
+        type=str,
+        default="true",
+        help="Use functional intercept for the model",
+        choices=["true", "false"],
+    )
+    parser.add_argument(
+        "--functional_params",
+        type=str,
+        default="true",
+        help="Use functional parameter for the model",
+        choices=["true", "false"],
+    )
+    parser.add_argument(
+        "--num_latent_vals",
+        type=int,
+        default=1,
+        help="Number of latent variables for the model",
+    )
 
 
     parser.set_defaults(feature=True)
@@ -237,5 +257,7 @@ def parse_cmdline_args(raw_args=None, parser=None):
     args.save_model = d[args.save_model]  
     args.batch_norm = d[args.batch_norm]
     args.optimal_hyperparams = d[args.optimal_hyperparams]
+    args.functional_intercept = d[args.functional_intercept]
+    args.functional_params = d[args.functional_params]
 
     return args

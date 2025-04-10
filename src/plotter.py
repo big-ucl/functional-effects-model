@@ -12,7 +12,6 @@ from typing import List, Dict
 
 all_models = {
     "RUMBoost": RUMBoost,
-    "ResLogit": ResLogit,
     "TasteNet": TasteNet,
 }
 
@@ -24,7 +23,7 @@ def plot_alt_spec_features(
     save_fig: bool = False,
 ):
     """
-    Plot the alternative-specific features for the models.
+    Plot the alternative-specific features for the models, if trained without functional parameters.
 
     Parameters
     ----------
@@ -40,20 +39,12 @@ def plot_alt_spec_features(
     # Load the models
     for model in all_models.keys():
         if model == "RUMBoost":
-            model_path = f"results/{model}/model.json"
+            model_path = f"results/{model}/model_fiFalse_fpFalse.json"
             rumboost = all_models[model]()
             rumboost.load_model(model_path)
             rumboost_params = rumboost.model.boosters[:-1]
-        elif model == "ResLogit":
-            model_path = f"results/{model}/model.pth"
-            reslogit = all_models[model]()
-            reslogit.load_model(path=model_path)
-            reslogit_params = [
-                params.detach().cpu().numpy()
-                for params in reslogit.model.mnl_as.parameters()
-            ][:-1][0]
         elif model == "TasteNet":
-            model_path = f"results/{model}/model.pth"
+            model_path = f"results/{model}/model_fiFalse_fpFalse.pth"
             tastenet = all_models[model]()
             tastenet.load_model(path=model_path)
             tastenet_params = [
@@ -106,7 +97,6 @@ def plot_alt_spec_features(
         dummy_array = np.zeros((10000, len(alt_spec_features)))
         dummy_array[:, i] = x
         y_rumboost = rumboost_params[0].predict(dummy_array)
-        y_reslogit = reslogit_params[:, i] * x
         y_tastenet = tastenet_params[:, i] * x
 
         y_rumboost = [y - y_rumboost[0] for y in y_rumboost]
@@ -115,8 +105,7 @@ def plot_alt_spec_features(
         plt.figure(figsize=(2.62, 1.97), dpi=300)
 
         plt.plot(x, y_rumboost, label="RUMBoost", color=colors[0], linewidth=0.8)
-        plt.plot(x, y_reslogit, label="ResLogit", color=colors[1], linewidth=0.8)
-        plt.plot(x, y_tastenet, label="TasteNet", color=colors[2], linewidth=0.8)
+        plt.plot(x, y_tastenet, label="TasteNet/LMNL", color=colors[1], linewidth=0.8)
         plt.xlabel(as_feat)
         plt.ylabel("Utility")
         plt.legend()
@@ -136,9 +125,12 @@ def plot_ind_spec_constant(
     path_to_data: str = PATH_TO_DATA,
     save_fig: bool = False,
     feature_to_highlight: str = None,
+    functional_params: bool = True,
+    functional_intercept: bool = True,
 ):
     """
     Plot the individual-specific constant for the models.
+    The model needs to be trained with functional parameters or functional intercept.
 
     Parameters
     ----------
@@ -152,24 +144,11 @@ def plot_ind_spec_constant(
         Whether to save the figure or not.
     feature_to_highlight : str
         Feature to highlight in the plot. If None, no feature is highlighted.
+    functional_params : bool
+        If the model is trained with functional parameters.
+    functional_intercept : bool
+        If the model is trained with functional intercept.
     """
-    # Load the models
-    for model in all_models.keys():
-        if model == "RUMBoost":
-            model_path = f"results/{model}/model.json"
-            rumboost = all_models[model]()
-            rumboost.load_model(model_path)
-            rumboost_predictor = rumboost.model.boosters[-1]
-        elif model == "ResLogit":
-            model_path = f"results/{model}/model.pth"
-            reslogit = all_models[model]()
-            reslogit.load_model(path=model_path)
-            reslogit_predictor = reslogit.model
-        elif model == "TasteNet":
-            model_path = f"results/{model}/model.pth"
-            tastenet = all_models[model]()
-            tastenet.load_model(path=model_path)
-            tastenet_predictor = tastenet.model.params_module
 
     # Plot the features
     tex_fonts = {
@@ -215,80 +194,91 @@ def plot_ind_spec_constant(
         and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
     ]
 
-    colors = ["#264653", "#2a9d8f", "#f4a261"]
+    num_plots = functional_params * alt_spec_features + functional_intercept
+    if num_plots == 0:
+        raise ValueError(
+            "The model needs to be trained with functional parameters or functional intercept."
+        )
 
-    fig, axes = plt.subplots(1, 3, figsize=(8, 6), dpi=300)
-
-    for i, (model, ax) in enumerate(zip(all_models.keys(), axes.flatten())):
-        if feature_to_highlight:
-            df[feature_to_highlight] = df[feature_to_highlight].astype("category")
-            df[feature_to_highlight] = df[feature_to_highlight].cat.codes
-            hue = df[feature_to_highlight]
-        else:
-            hue = None
+    # Load the models
+    for model in all_models.keys():
         if model == "RUMBoost":
-            y_rumboost = rumboost_predictor.predict(df[socio_demo_chars])
-            sns.histplot(
-                y_rumboost,
-                ax=ax,
-                bins=50,
-                color=colors[i],
-                hue=hue,
-                # multiple="stack",
-            )
-        elif model == "ResLogit":
-            sdc_tensor = torch.from_numpy(df[socio_demo_chars].values).to(
-                torch.device("cuda")
-            ).to(torch.float32)
-            y_reslogit = (
-                reslogit_predictor.resnet_layer(reslogit_predictor.mnl_sd(sdc_tensor))
-                .detach()
-                .cpu()
-                .numpy()
-                .squeeze()
-            )
-            sns.histplot(
-                y_reslogit,
-                ax=ax,
-                bins=50,
-                color=colors[i],
-                hue=hue,
-                # multiple="stack",
-            )
+            model_path = f"results/{model}/model_fi{functional_intercept}_fp{functional_params}.json"
+            rumboost = all_models[model]()
+            rumboost.load_model(model_path)
+            rumboost_predictor = rumboost.model.boosters[-num_plots:]
         elif model == "TasteNet":
+            model_path = f"results/{model}/model_fi{functional_intercept}_fp{functional_params}.pth"
+            tastenet = all_models[model]()
+            tastenet.load_model(path=model_path)
+            tastenet_predictor = tastenet.model.params_module
+            #already computing the functional values as they are outputted all at once
             sdc_tensor = torch.from_numpy(df[socio_demo_chars].values).to(
                 torch.device("cuda")
             ).to(torch.float32)
             y_tastenet = tastenet_predictor(sdc_tensor).detach().cpu().numpy().squeeze()
-            sns.histplot(
-                y_tastenet,
-                ax=ax,
-                bins=50,
-                color=colors[i],
-                hue=hue,
-                # multiple="stack",
+
+    colors = ["#264653", "#2a9d8f", "#f4a261"]
+
+    fig, axes = plt.subplots(1, 2, figsize=(8, 6), dpi=300)
+
+    for j in range(num_plots):
+        for i, (model, ax) in enumerate(zip(all_models.keys(), axes.flatten())):
+            if feature_to_highlight:
+                df[feature_to_highlight] = df[feature_to_highlight].astype("category")
+                df[feature_to_highlight] = df[feature_to_highlight].cat.codes
+                hue = df[feature_to_highlight]
+            else:
+                hue = None
+            if model == "RUMBoost":
+                y_rumboost = rumboost_predictor[j].predict(df[socio_demo_chars])
+                sns.histplot(
+                    y_rumboost,
+                    ax=ax,
+                    bins=50,
+                    color=colors[i],
+                    hue=hue,
+                    # multiple="stack",
+                )
+            elif model == "TasteNet":
+                sns.histplot(
+                    y_tastenet[:, j],
+                    ax=ax,
+                    bins=50,
+                    color=colors[i],
+                    hue=hue,
+                    # multiple="stack",
+                )
+            if model == "TasteNet" and not functional_params:
+                title = "LMNL"
+            else:
+                title = model
+
+            if functional_params and j < num_plots - 1:
+                title += f" - {alt_spec_features[j]}"
+            else:
+                title += " - Intercept"
+            ax.set_title(title)
+            ax.set_xlabel("Functional values")
+            ax.set_ylabel("Count")
+
+        # # Defining custom 'xlim' and 'ylim' values.
+        # xlim = (-3.5, 3.5)
+        # ylim = (0, 5250)
+
+        # # Setting the values for all axes.
+        # plt.setp(axes, xlim=xlim, ylim=ylim)
+
+        if save_fig:
+            if not feature_to_highlight:
+                feature_to_highlight = "all"
+            save_path = f"results/figures/ind_spec_const_{feature_to_highlight}.png"
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            plt.savefig(
+                save_path, dpi=300, bbox_inches="tight"
             )
-        ax.set_title(model)
-        ax.set_xlabel("Individual-specific constant")
-        ax.set_ylabel("Count")
 
-    # # Defining custom 'xlim' and 'ylim' values.
-    # xlim = (-3.5, 3.5)
-    # ylim = (0, 5250)
-
-    # # Setting the values for all axes.
-    # plt.setp(axes, xlim=xlim, ylim=ylim)
-
-    if save_fig:
-        if not feature_to_highlight:
-            feature_to_highlight = "all"
-        save_path = f"results/figures/ind_spec_const_{feature_to_highlight}.png"
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        plt.savefig(
-            save_path, dpi=300, bbox_inches="tight"
-        )
-
-    plt.show()
+        plt.show()
 
 
 if __name__ == "__main__":

@@ -8,13 +8,24 @@ from functools import partial
 from helper import set_all_seeds
 from utils import split_dataset, compute_metrics
 from constants import PATH_TO_DATA_TRAIN, PATH_TO_FOLDS, alt_spec_features
-from models_wrapper import RUMBoost, ResLogit, TasteNet
+from models_wrapper import RUMBoost, TasteNet
 from parser import parse_cmdline_args
 
 
-def objective(trial, model):
+def objective(trial, model, func_int, func_params):
     """
     Optuna objective function for the hyperparameter search.
+
+    Parameters
+    ----------
+    trial : optuna.Trial
+        The current trial object.
+    model : str
+        The model to train.
+    func_int : bool
+        Whether to use functional intercept.
+    func_params : bool
+        Whether to use functional parameters.
     """
 
     # load the data
@@ -51,6 +62,8 @@ def objective(trial, model):
             "early_stopping_rounds": 100,
             "verbose": 0,
             "verbose_interval": 100,
+            "functional_intercept": func_int,
+            "functional_params": func_params,
             "learning_rate": trial.suggest_float("learning_rate", 0.05, 0.1, step=0.05),
             "device": "cuda",
             "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True),
@@ -75,29 +88,14 @@ def objective(trial, model):
             num_classes=13,
             args=args,
         )
-    elif model == "ResLogit":
-        dict_args = {
-            "num_epochs": 200,
-            "batch_size": trial.suggest_int("batch_size", 16, 256, step=16),
-            "learning_rate": trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True),
-            "patience": 20,
-            "n_layers": trial.suggest_int("n_layers", 1, 32),
-            "device": "cuda",
-        }
-        args.__dict__.update(dict_args)
-        model = ResLogit(
-            alt_spec_features=alt_spec_features,
-            socio_demo_chars=socio_demo_chars,
-            num_classes=13,
-            args=args,
-        )
     elif model == "TasteNet":
         dict_args = {
             "num_epochs": 200,
-            "batch_size": trial.suggest_int("batch_size", 16, 256, step=16),
+            "functional_intercept": func_int,
+            "functional_params": func_params,
+            "batch_size": trial.suggest_int("batch_size", 256, 1024, step=256),
             "learning_rate": trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True),
             "patience": 20,
-            "n_layers": trial.suggest_int("n_layers", 1, 32),
             "dropout": trial.suggest_float("dropout", 0.0, 0.9),
             "device": "cuda",
             "act_func": trial.suggest_categorical(
@@ -108,13 +106,15 @@ def objective(trial, model):
                 trial.suggest_categorical(
                     "layer_sizes",
                     [
-                        (65, 64, 1),
-                        (65, 128, 1),
-                        (65, 64, 64, 1),
-                        (65, 128, 128, 1),
-                        (65, 64, 128, 1),
-                        (65, 128, 64, 1),
-                        (65, 64, 128, 64, 1),
+                        [32],
+                        [64],
+                        [128],
+                        [32, 32],
+                        [64, 64],
+                        [128, 128],
+                        [64, 128],
+                        [128, 64],
+                        [64, 128, 64],
                     ],
                 ),
             ],
@@ -154,30 +154,32 @@ if __name__ == "__main__":
     # set the random seed for reproducibility
     set_all_seeds(42)
 
-    for model in ["RUMBoost", "ResLogit", "TasteNet"]:
+    for model in ["RUMBoost", "TasteNet"]:
+        for func_int in [True, False]:
+            for func_params in [True, False]:
 
-        objective = partial(objective, model=model)
+                objective = partial(objective, model=model, func_int=func_int, func_params=func_params)
 
-        study = optuna.create_study(direction="minimize")
+                study = optuna.create_study(direction="minimize")
 
-        start_time = time.time()
-        print(f"Starting hyperparameter search for {model}...")
-        study.optimize(objective, n_trials=100)
-        end_time = time.time()
+                start_time = time.time()
+                print(f"Starting hyperparameter search for {model} with func params {func_params} and with func intercept {func_int}...")
+                study.optimize(objective, n_trials=100)
+                end_time = time.time()
 
-        best_params = study.best_params
-        best_value = study.best_value
-        best_trial = study.best_trial
-        optimisation_time = end_time - start_time
+                best_params = study.best_params
+                best_value = study.best_value
+                best_trial = study.best_trial
+                optimisation_time = end_time - start_time
 
-        best_params["best_iteration"] = best_trial.user_attrs["best_iteration"]
+                best_params["best_iteration"] = best_trial.user_attrs["best_iteration"]
 
-        print(f"Best params: {best_params}")
-        print(f"Best value: {best_value}")
+                print(f"Best params: {best_params}")
+                print(f"Best value: {best_value}")
 
-        with open(f"results/{model}/best_params.pkl", "wb") as f:
-            pickle.dump(best_params, f)
+                with open(f"results/{model}/best_params_fi{func_int}_fp{func_params}.pkl", "wb") as f:
+                    pickle.dump(best_params, f)
 
-        with open(f"results/{model}/hyper_search_info.txt", "w") as f:
-            f.write(f"Best value: {best_value}\n")
-            f.write(f"Optimisation time: {optimisation_time}\n")
+                with open(f"results/{model}/hyper_search_info_fi{func_int}_fp{func_params}.txt", "w") as f:
+                    f.write(f"Best value: {best_value}\n")
+                    f.write(f"Optimisation time: {optimisation_time}\n")

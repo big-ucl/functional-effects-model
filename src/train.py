@@ -11,7 +11,7 @@ from constants import (
     PATH_TO_DATA_TRAIN,
     alt_spec_features,
 )
-from models_wrapper import RUMBoost, ResLogit, TasteNet
+from models_wrapper import RUMBoost, TasteNet
 
 
 def train(args):
@@ -34,7 +34,7 @@ def train(args):
         data_test = pd.read_csv(PATH_TO_DATA_TEST)
         columns = data_train.columns
     else:
-        data = pd.read_csv(PATH_TO_DATA)
+        data = pd.read_csv(PATH_TO_DATA).iloc[:1000]
         columns = data.columns
 
     features = [
@@ -70,7 +70,9 @@ def train(args):
     if args.optimal_hyperparams:
         # load the optimal hyperparameters for the model
         try:
-            opt_hyperparams_path = f"results/{args.model}/best_params.pkl"
+            opt_hyperparams_path = (
+                f"results/{args.model}/best_params_fi{args.functional_intercept}_fp{args.functional_params}.pkl"
+            )
             with open(opt_hyperparams_path, "rb") as f:
                 optimal_hyperparams = pickle.load(f)
                 args.__dict__.update(optimal_hyperparams)
@@ -89,18 +91,7 @@ def train(args):
             num_classes=13,
             args=args,
         )
-        save_path = args.outpath + "model.json"
-    elif args.model == "ResLogit":
-        if args.optimal_hyperparams:
-            args.num_epochs = int(optimal_hyperparams["best_iteration"])
-            args.patience = args.num_epochs
-        model = ResLogit(
-            alt_spec_features=alt_spec_features,
-            socio_demo_chars=socio_demo_chars,
-            num_classes=13,
-            args=args,
-        )
-        save_path = args.outpath + "model.pth"
+        save_path = args.outpath + f"model_fi{args.functional_intercept}_fp{args.functional_params}.json"
     elif args.model == "TasteNet":
         if args.optimal_hyperparams:
             args.num_epochs = int(optimal_hyperparams["best_iteration"])
@@ -111,7 +102,7 @@ def train(args):
             num_classes=13,
             args=args,
         )
-        save_path = args.outpath + "model.pth"
+        save_path = args.outpath + f"model_fi{args.functional_intercept}_fp{args.functional_params}.pth"
 
     model.build_dataloader(X_train, y_train, X_val, y_val)
 
@@ -140,7 +131,7 @@ def train(args):
     }
 
     # save the results
-    pd.DataFrame(results_dict, index=[0]).to_csv(args.outpath + "results_dict.csv")
+    pd.DataFrame(results_dict, index=[0]).to_csv(args.outpath + f"results_dict_fi{args.functional_intercept}_fp{args.functional_params}.csv")
 
     if args.save_model:
         model.save_model(save_path)
