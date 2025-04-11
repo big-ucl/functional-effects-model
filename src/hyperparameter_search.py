@@ -68,8 +68,8 @@ def objective(trial, model, func_int, func_params):
             "functional_params": func_params,
             "learning_rate": trial.suggest_float("learning_rate", 0.05, 0.1, step=0.05),
             "device": "cuda",
-            "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True),
-            "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 10.0, log=True),
+            "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 1.0, log=True),
+            "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 1.0, log=True),
             "num_leaves": trial.suggest_int("num_leaves", 2, 256),
             "feature_fraction": trial.suggest_float("feature_fraction", 0.4, 1.0),
             "bagging_fraction": trial.suggest_float("bagging_fraction", 0.4, 1.0),
@@ -103,6 +103,8 @@ def objective(trial, model, func_int, func_params):
             "act_func": trial.suggest_categorical(
                 "act_func", ["relu", "tanh", "sigmoid"]
             ),
+            "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 1, log=True),
+            "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 1, log=True),
             "batch_norm": trial.suggest_categorical("batch_norm", [True, False]),
             "layer_sizes": [
                 trial.suggest_categorical(
@@ -175,7 +177,7 @@ if __name__ == "__main__":
 
                 start_time = time.time()
                 print(f"Starting hyperparameter search for {model} with func params {func_params} and with func intercept {func_int}...")
-                study.optimize(objective, n_trials=100)
+                study.optimize(objective, n_trials=50, n_jobs=8)
                 end_time = time.time()
 
                 best_params = study.best_params

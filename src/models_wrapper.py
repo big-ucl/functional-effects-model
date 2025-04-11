@@ -40,9 +40,11 @@ class RUMBoost:
 
         if "args" in kwargs:
 
-            num_boosters = kwargs.get("args").functional_intercept + kwargs.get(
-                "args"
-            ).functional_params * len(kwargs.get("alt_spec_features"))
+            num_boosters = kwargs.get("args").functional_intercept + np.minimum(
+                kwargs.get("args").functional_params
+                * len(kwargs.get("alt_spec_features")),
+                1,
+            )
             # generate ordinal spec
             ordinal_spec = generate_ordinal_spec(
                 model_type=kwargs.get("args").model_type,
@@ -65,24 +67,32 @@ class RUMBoost:
 
                 general_params["boost_from_parameter_space"] = boost_from_param_space
 
-            # add hyperparameters
-            hyperparameters = {
-                "num_leaves": kwargs.get("args").num_leaves,
-                "min_gain_to_split": kwargs.get("args").min_gain_to_split,
-                "min_sum_hessian_in_leaf": kwargs.get("args").min_sum_hessian_in_leaf,
-                "learning_rate": kwargs.get("args").learning_rate,
-                "max_bin": kwargs.get("args").max_bin,
-                "min_data_in_bin": kwargs.get("args").min_data_in_bin,
-                "min_data_in_leaf": kwargs.get("args").min_data_in_leaf,
-                "feature_fraction": kwargs.get("args").feature_fraction,
-                "bagging_fraction": kwargs.get("args").bagging_fraction,
-                "bagging_freq": kwargs.get("args").bagging_freq,
-                "lambda_l1": kwargs.get("args").lambda_l1,
-                "lambda_l2": kwargs.get("args").lambda_l2,
-            }
-            self.rum_structure[-num_boosters:] = add_hyperparameters(
-                self.rum_structure[-num_boosters:], hyperparameters
-            )
+            general_params["max_booster_to_update"] = num_boosters
+
+            if (
+                kwargs.get("args").functional_intercept
+                or kwargs.get("args").functional_params
+            ):
+                # add hyperparameters
+                hyperparameters = {
+                    "num_leaves": kwargs.get("args").num_leaves,
+                    "min_gain_to_split": kwargs.get("args").min_gain_to_split,
+                    "min_sum_hessian_in_leaf": kwargs.get(
+                        "args"
+                    ).min_sum_hessian_in_leaf,
+                    "learning_rate": kwargs.get("args").learning_rate / num_boosters,
+                    "max_bin": kwargs.get("args").max_bin,
+                    "min_data_in_bin": kwargs.get("args").min_data_in_bin,
+                    "min_data_in_leaf": kwargs.get("args").min_data_in_leaf,
+                    "feature_fraction": kwargs.get("args").feature_fraction,
+                    "bagging_fraction": kwargs.get("args").bagging_fraction,
+                    "bagging_freq": kwargs.get("args").bagging_freq,
+                    "lambda_l1": kwargs.get("args").lambda_l1,
+                    "lambda_l2": kwargs.get("args").lambda_l2,
+                }
+                self.rum_structure[-num_boosters:] = add_hyperparameters(
+                    self.rum_structure[-num_boosters:], hyperparameters
+                )
 
             self.model_spec = {
                 "rum_structure": self.rum_structure,
@@ -320,11 +330,15 @@ class TasteNet:
                 loss = self.criterion(output, levels)
                 train_loss += loss.item()
 
-                if self.l1_norm > 0 and (self.functional_params or self.functional_intercept):
+                if self.l1_norm > 0 and (
+                    self.functional_params or self.functional_intercept
+                ):
                     loss += self.l1_norm * self.model.l1_norm().item() / x.shape[0]
-                if self.l2_norm > 0 and (self.functional_params or self.functional_intercept):
+                if self.l2_norm > 0 and (
+                    self.functional_params or self.functional_intercept
+                ):
                     loss += self.l2_norm * self.model.l2_norm().item() / x.shape[0]
-                    
+
                 loss.backward()
                 self.optimiser.step()
 

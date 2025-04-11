@@ -36,7 +36,7 @@ def train(args):
         data_test = pd.read_csv(PATH_TO_DATA_TEST)
         columns = data_train.columns
     else:
-        data = pd.read_csv(PATH_TO_DATA).iloc[:10000]
+        data = pd.read_csv(PATH_TO_DATA)
         columns = data.columns
 
     features = [
@@ -74,8 +74,7 @@ def train(args):
     X_train[alt_spec_features + socio_demo_chars] = scaler.fit_transform(X_train[alt_spec_features + socio_demo_chars])
     X_test[alt_spec_features + socio_demo_chars] = scaler.transform(X_test[alt_spec_features + socio_demo_chars])
     if not args.optimal_hyperparams:
-        X_val[socio_demo_chars] = scaler.transform(X_val[socio_demo_chars])
-        X_val[alt_spec_features] = scaler.transform(X_val[alt_spec_features])
+        X_val[alt_spec_features + socio_demo_chars] = scaler.transform(X_val[alt_spec_features + socio_demo_chars])
 
     if args.optimal_hyperparams:
         # load the optimal hyperparameters for the model
