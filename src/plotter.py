@@ -5,8 +5,10 @@ import numpy as np
 import torch
 import os
 
-from models_wrapper import RUMBoost, ResLogit, TasteNet
-from constants import alt_spec_features, PATH_TO_DATA
+from sklearn.preprocessing import MinMaxScaler
+
+from models_wrapper import RUMBoost, TasteNet
+from constants import alt_spec_features, PATH_TO_DATA, PATH_TO_DATA_TRAIN
 from typing import List, Dict
 
 
@@ -21,6 +23,7 @@ def plot_alt_spec_features(
     all_models: Dict = all_models,
     path_to_data: str = PATH_TO_DATA,
     save_fig: bool = False,
+    functional_intercept: bool = False,
 ):
     """
     Plot the alternative-specific features for the models, if trained without functional parameters.
@@ -35,16 +38,21 @@ def plot_alt_spec_features(
         Path to the data folder.
     save_fig : bool
         Whether to save the figure or not.
+    functional_intercept : bool
+        If the model is trained with functional intercept.
     """
     # Load the models
     for model in all_models.keys():
         if model == "RUMBoost":
-            model_path = f"results/{model}/model_fiFalse_fpFalse.json"
+            model_path = f"results/{model}/model_fi{functional_intercept}_fpFalse.json"
             rumboost = all_models[model]()
             rumboost.load_model(model_path)
-            rumboost_params = rumboost.model.boosters[:-1]
+            if functional_intercept:
+                rumboost_params = rumboost.model.boosters[:-1]
+            else:
+                rumboost_params = rumboost.model.boosters
         elif model == "TasteNet":
-            model_path = f"results/{model}/model_fiFalse_fpFalse.pth"
+            model_path = f"results/{model}/model_fi{functional_intercept}_fpFalse.pth"
             tastenet = all_models[model]()
             tastenet.load_model(path=model_path)
             tastenet_params = [
@@ -94,8 +102,9 @@ def plot_alt_spec_features(
     for i, as_feat in enumerate(alt_spec_features):
 
         x = np.linspace(0, df[as_feat].max(), 10000)
+        x_scaled = np.linspace(0, 1, 10000)
         dummy_array = np.zeros((10000, len(alt_spec_features)))
-        dummy_array[:, i] = x
+        dummy_array[:, i] = x_scaled
         y_rumboost = rumboost_params[0].predict(dummy_array)
         y_tastenet = tastenet_params[:, i] * x
 
@@ -112,7 +121,7 @@ def plot_alt_spec_features(
         plt.tight_layout()
 
         if save_fig:
-            save_path = f"results/figures/{as_feat}.png"
+            save_path = f"results/figures/{as_feat}_fi{functional_intercept}.png"
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
@@ -123,6 +132,7 @@ def plot_ind_spec_constant(
     alt_spec_features: List = alt_spec_features,
     all_models: Dict = all_models,
     path_to_data: str = PATH_TO_DATA,
+    path_to_data_train: str = PATH_TO_DATA_TRAIN,
     save_fig: bool = False,
     feature_to_highlight: str = None,
     functional_params: bool = True,
@@ -140,6 +150,8 @@ def plot_ind_spec_constant(
         Dictionary of all models.
     path_to_data : str
         Path to the data folder.
+    path_to_data_train : str
+        Path to the training data folder.
     save_fig : bool
         Whether to save the figure or not.
     feature_to_highlight : str
@@ -186,6 +198,7 @@ def plot_ind_spec_constant(
     )
 
     df = pd.read_csv(path_to_data)
+    df_train = pd.read_csv(path_to_data_train)
 
     socio_demo_chars = [
         col
@@ -194,7 +207,11 @@ def plot_ind_spec_constant(
         and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
     ]
 
-    num_plots = functional_params * alt_spec_features + functional_intercept
+    scaler = MinMaxScaler()
+    df_train[socio_demo_chars] = scaler.fit_transform(df_train[socio_demo_chars])
+    df[socio_demo_chars] = scaler.transform(df[socio_demo_chars])
+
+    num_plots = functional_params * len(alt_spec_features) + functional_intercept
     if num_plots == 0:
         raise ValueError(
             "The model needs to be trained with functional parameters or functional intercept."
@@ -212,17 +229,20 @@ def plot_ind_spec_constant(
             tastenet = all_models[model]()
             tastenet.load_model(path=model_path)
             tastenet_predictor = tastenet.model.params_module
-            #already computing the functional values as they are outputted all at once
-            sdc_tensor = torch.from_numpy(df[socio_demo_chars].values).to(
-                torch.device("cuda")
-            ).to(torch.float32)
+            # already computing the functional values as they are outputted all at once
+            sdc_tensor = (
+                torch.from_numpy(df[socio_demo_chars].values)
+                .to(torch.device("cuda"))
+                .to(torch.float32)
+            )
             y_tastenet = tastenet_predictor(sdc_tensor).detach().cpu().numpy().squeeze()
+            if not functional_params:
+                y_tastenet = y_tastenet.reshape(-1, 1)
 
     colors = ["#264653", "#2a9d8f", "#f4a261"]
 
-    fig, axes = plt.subplots(1, 2, figsize=(8, 6), dpi=300)
-
     for j in range(num_plots):
+        fig, axes = plt.subplots(1, 2, figsize=(8, 6), dpi=300)
         for i, (model, ax) in enumerate(zip(all_models.keys(), axes.flatten())):
             if feature_to_highlight:
                 df[feature_to_highlight] = df[feature_to_highlight].astype("category")
@@ -255,12 +275,16 @@ def plot_ind_spec_constant(
                 title = model
 
             if functional_params and j < num_plots - 1:
-                title += f" - {alt_spec_features[j]}"
+                fig_title = f"{alt_spec_features[j]}"
             else:
-                title += " - Intercept"
+                fig_title = "Intercept"
             ax.set_title(title)
             ax.set_xlabel("Functional values")
-            ax.set_ylabel("Count")
+            if i%2 == 0:
+                ax.set_ylabel("Count")
+                plt.title(fig_title, fontsize=8)
+            else:
+                ax.set_ylabel("")
 
         # # Defining custom 'xlim' and 'ylim' values.
         # xlim = (-3.5, 3.5)
@@ -271,16 +295,22 @@ def plot_ind_spec_constant(
 
         if save_fig:
             if not feature_to_highlight:
-                feature_to_highlight = "all"
-            save_path = f"results/figures/ind_spec_const_{feature_to_highlight}.png"
+                feature_to_highlight = ""
+            if functional_params and j < num_plots - 1:
+                save_path = f"results/figures/ind_spec_const_{alt_spec_features[j]}_fi{functional_intercept}_fp{functional_params}_{feature_to_highlight}.png"
+            else:
+                save_path = f"results/figures/ind_spec_const_intercept_fiTrue_fp{functional_params}_{feature_to_highlight}.png"
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            plt.savefig(
-                save_path, dpi=300, bbox_inches="tight"
-            )
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
-        plt.show()
+        # plt.show()
 
 
 if __name__ == "__main__":
-    # plot_alt_spec_features(save_fig=True)
+    # plot_alt_spec_features(save_fig=True, functional_intercept=True)
+    # plot_alt_spec_features(save_fig=True, functional_intercept=False)
     plot_ind_spec_constant(save_fig=True)
+    # plot_ind_spec_constant(save_fig=True, functional_params=False, functional_intercept=True)
+    # plot_ind_spec_constant(save_fig=True, functional_params=True, functional_intercept=False)
+    # plot_ind_spec_constant(functional_params=False, feature_to_highlight="female")
+

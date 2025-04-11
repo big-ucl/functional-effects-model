@@ -1063,7 +1063,7 @@ class RUMBoost:
                     if self.boost_from_parameter_space[k]
                     and "endogenous_variable" not in self.rum_structure[k].keys()
                     else (
-                        (
+                        torch.from_numpy(
                             self._monotonise_leaves(
                                 booster.predict(
                                     new_data[k].get_data(),
@@ -1079,7 +1079,9 @@ class RUMBoost:
                                     "monotone_constraints"
                                 ][0],
                             )
-                            * data[self.rum_structure[k]["endogenous_variable"]]
+                            * data.get_data()[
+                                self.rum_structure[k]["endogenous_variable"]
+                            ].values
                         ).to(device=self.device)
                         if "endogenous_variable" in self.rum_structure[k].keys()
                         else torch.from_numpy(
@@ -1168,7 +1170,7 @@ class RUMBoost:
                                 "monotone_constraints"
                             ][0],
                         )
-                        * data[self.rum_structure[k]["endogenous_variable"]]
+                        * data.get_data()[self.rum_structure[k]["endogenous_variable"]].values
                     )
                     if "endogenous_variable" in self.rum_structure[k].keys()
                     else booster.predict(
@@ -1299,7 +1301,7 @@ class RUMBoost:
                                     "monotone_constraints"
                                 ][0],
                             )
-                            * self.valid_sets[data_idx - 1][j].data.reshape(-1)
+                            * self.distances_valid[data_idx - 1][j]
                         ).to(
                             device=self.device
                         )
@@ -1370,12 +1372,15 @@ class RUMBoost:
                         j, self.valid_sets[data_idx - 1][j].data.reshape(-1)
                     )
                 elif "endogenous_variable" in self.rum_structure[j].keys():
-                    raw_preds[self.booster_valid_idx[j]] += self._monotonise_leaves(
-                        self.boosters[j]._Booster__inner_predict(data_idx),
-                        self.rum_structure[j]["boosting_params"][
-                            "monotone_constraints"
-                        ][0],
-                    ) * self.valid_sets[data_idx - 1][j].data.reshape(-1)
+                    raw_preds[self.booster_valid_idx[j]] += (
+                        self._monotonise_leaves(
+                            self.boosters[j]._Booster__inner_predict(data_idx),
+                            self.rum_structure[j]["boosting_params"][
+                                "monotone_constraints"
+                            ][0],
+                        )
+                        * self.distances_valid[data_idx - 1][j]
+                    )
                 else:
                     raw_preds[self.booster_valid_idx[j]] += self.boosters[
                         j
@@ -1670,9 +1675,9 @@ class RUMBoost:
             try:
                 params = copy.deepcopy(struct["boosting_params"])
                 if self.boost_from_parameter_space[j]:
-                    params["monotone_constraints"] = [
-                        0
-                    ]  # in case of boosting from parameter, monotonicity is removed
+                    params["monotone_constraints"] = [0] * len(
+                        struct["variables"]
+                    )  # in case of boosting from parameter, monotonicity is removed
                 booster = Booster(
                     params=params,
                     train_set=self.train_set[j],
@@ -1785,13 +1790,19 @@ class RUMBoost:
                 current_preds = (
                     self._monotonise_leaves(
                         booster._Booster__inner_predict(0),
-                        self.rum_structure[j]["monotone_constraints"]["boosting_params"][0],
+                        self.rum_structure[j]["boosting_params"][
+                            "monotone_constraints"
+                        ][0],
                     )
                     * self.distances[j]
                 )
             else:
                 current_preds = booster._Booster__inner_predict(0)
-            if self.device is not None and self.boost_from_parameter_space[j]:
+            if (
+                self.device is not None
+                and self.boost_from_parameter_space[j]
+                and ("endogenous_variable" not in self.rum_structure[j].keys())
+            ):
                 self.raw_preds[
                     self.booster_train_idx[j][0] : self.booster_train_idx[j][1]
                 ] += current_preds
@@ -3008,7 +3019,18 @@ def rum_train(
         rumb.boost_from_parameter_space = params["boost_from_parameter_space"]
 
         optim_interval = params.get("optim_interval", 1)
-        optimise_ascs = optim_interval > 0
+        optimise_ascs = (optim_interval > 0) and (
+            "ordinal_logit" not in model_specification
+        )
+
+        if optimise_ascs and "nested_logit" in model_specification:
+            raise ValueError(
+                "The ASCs cannot be optimised when using nested logit. Please set optim_interval to 0."
+            )
+        if optimise_ascs and "cross_nested_logit" in model_specification:
+            raise ValueError(
+                "The ASCs cannot be optimised when using cross nested logit. Please set optim_interval to 0."
+            )
 
         rumb.asc = np.zeros(rumb.num_classes)
 
@@ -3031,7 +3053,15 @@ def rum_train(
                 if "endogenous_variable" in struct:
                     rumb.distances[j] = train_set.get_data()[
                         struct["endogenous_variable"]
-                    ]
+                    ].values
+                    if valid_sets is not None:
+                        if not isinstance(rumb.distances_valid, list):
+                            rumb.distances_valid = [{}] * len(valid_sets)
+                        for i, val_set in enumerate(valid_sets):
+                            val_set.construct()
+                            rumb.distances_valid[i][j] = val_set.get_data()[
+                                struct["endogenous_variable"]
+                            ].values
                 else:
 
                     # default regularisation on the hessian because
@@ -3451,6 +3481,7 @@ def rum_train(
                     .cpu()
                     .numpy()
                 )
+                print(raw_preds.shape)
                 labels = rumb.labels[rumb.subsample_idx].cpu().numpy()
                 ascs = rumb.asc.cpu().numpy()
             else:

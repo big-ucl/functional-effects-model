@@ -15,9 +15,6 @@ from utils import (
 from rumboost.rumboost import rum_train
 from rumboost.rumboost import RUMBoost as load_rumboost
 
-from reslogit.models import OrdinalResLogit
-from reslogit.data_utils import ResLogitDataset
-
 from tastenet.models import TasteNet as TasteNetBuild
 from tastenet.data_utils import TasteNetDataset
 
@@ -43,11 +40,9 @@ class RUMBoost:
 
         if "args" in kwargs:
 
-            num_boosters = kwargs.get(
+            num_boosters = kwargs.get("args").functional_intercept + kwargs.get(
                 "args"
-            ).functional_intercept + kwargs.get("args").functional_params * len(
-                kwargs.get("socio_demo_chars")
-            )
+            ).functional_params * len(kwargs.get("alt_spec_features"))
             # generate ordinal spec
             ordinal_spec = generate_ordinal_spec(
                 model_type=kwargs.get("args").model_type,
@@ -67,7 +62,7 @@ class RUMBoost:
                 boost_from_param_space = [True] * num_boosters
                 if kwargs.get("args").functional_intercept:
                     boost_from_param_space[-1] = False
-                
+
                 general_params["boost_from_parameter_space"] = boost_from_param_space
 
             # add hyperparameters
@@ -229,6 +224,11 @@ class TasteNet:
             self.batch_size = kwargs.get("args").batch_size
             self.num_epochs = kwargs.get("args").num_epochs
             self.patience = kwargs.get("args").patience
+            self.l1_norm = kwargs.get("args").lambda_l1
+            self.l2_norm = kwargs.get("args").lambda_l2
+
+            self.functional_params = kwargs.get("args").functional_params
+            self.functional_intercept = kwargs.get("args").functional_intercept
 
             self.optimiser = torch.optim.Adam(
                 self.model.parameters(),
@@ -315,12 +315,19 @@ class TasteNet:
                 levels = (y[:, None] > classes[None, :]).float()
 
                 self.optimiser.zero_grad()
+
                 output = self.model(x, z)  # binary logits
                 loss = self.criterion(output, levels)
+                train_loss += loss.item()
+
+                if self.l1_norm > 0 and (self.functional_params or self.functional_intercept):
+                    loss += self.l1_norm * self.model.l1_norm().item() / x.shape[0]
+                if self.l2_norm > 0 and (self.functional_params or self.functional_intercept):
+                    loss += self.l2_norm * self.model.l2_norm().item() / x.shape[0]
+                    
                 loss.backward()
                 self.optimiser.step()
 
-                train_loss += loss.item()
                 if i % 50 == 0:
                     print(
                         f"--- Batch {i}/{len(self.train_dataloader)}, loss: {loss.item():.4f}"

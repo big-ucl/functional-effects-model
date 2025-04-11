@@ -3,6 +3,8 @@ import time
 import optuna
 import pickle
 
+from sklearn.preprocessing import MinMaxScaler
+
 from functools import partial
 
 from helper import set_all_seeds
@@ -132,8 +134,17 @@ def objective(trial, model, func_int, func_params):
     k = len(folds)
     for train_idx, val_idx in folds:
         # split data
-        X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
-        X_val, y_val = X.iloc[val_idx], y.iloc[val_idx]
+        X_train, y_train = X.iloc[train_idx].copy(), y.iloc[train_idx].copy()
+        X_val, y_val = X.iloc[val_idx].copy(), y.iloc[val_idx].copy()
+
+        # scale the features
+        scaler = MinMaxScaler()
+        X_train[alt_spec_features + socio_demo_chars] = scaler.fit_transform(
+            X_train[alt_spec_features + socio_demo_chars]
+        )
+        X_val[alt_spec_features + socio_demo_chars] = scaler.transform(
+            X_val[alt_spec_features + socio_demo_chars]
+        )
 
         # build the dataloader
         model.build_dataloader(X_train, y_train, X_val, y_val)

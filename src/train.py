@@ -3,6 +3,8 @@ import os
 import time
 import pickle
 
+from sklearn.preprocessing import MinMaxScaler
+
 from helper import set_all_seeds
 from utils import split_dataset, compute_metrics
 from constants import (
@@ -34,7 +36,7 @@ def train(args):
         data_test = pd.read_csv(PATH_TO_DATA_TEST)
         columns = data_train.columns
     else:
-        data = pd.read_csv(PATH_TO_DATA).iloc[:1000]
+        data = pd.read_csv(PATH_TO_DATA).iloc[:10000]
         columns = data.columns
 
     features = [
@@ -58,7 +60,7 @@ def train(args):
             val_size=args.val_size,
             groups=data["hhid"],
             random_state=args.seed,
-        )
+        )  
 
     socio_demo_chars = [
         col
@@ -66,6 +68,14 @@ def train(args):
         if col not in alt_spec_features
         and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
     ]
+
+    # scale the features
+    scaler = MinMaxScaler()
+    X_train[alt_spec_features + socio_demo_chars] = scaler.fit_transform(X_train[alt_spec_features + socio_demo_chars])
+    X_test[alt_spec_features + socio_demo_chars] = scaler.transform(X_test[alt_spec_features + socio_demo_chars])
+    if not args.optimal_hyperparams:
+        X_val[socio_demo_chars] = scaler.transform(X_val[socio_demo_chars])
+        X_val[alt_spec_features] = scaler.transform(X_val[alt_spec_features])
 
     if args.optimal_hyperparams:
         # load the optimal hyperparameters for the model

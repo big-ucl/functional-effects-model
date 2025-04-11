@@ -63,6 +63,7 @@ def generate_rum_structure(
                     "max_depth": 1,
                     "n_jobs": -1,
                     "learning_rate": 0.1,
+                    "verbose": -1,
                     "monotone_constraints": monotone_constraints,
                     "interaction_constraints": interaction_constraints,
                 },
@@ -82,8 +83,9 @@ def generate_rum_structure(
                     "n_jobs": -1,
                     "learning_rate": 0.1,
                     "monotone_constraints": [0],
+                    "verbose": -1,
                 },
-                "shared": True,
+                "shared": False,
                 "endogenous_variable": f
             }
             for f in alt_spec_features
@@ -101,6 +103,7 @@ def generate_rum_structure(
                     "monotone_constraints_method": "advanced",
                     "n_jobs": -1,
                     "learning_rate": 0.1,
+                    "verbose": -1,
                 },
                 "shared": False,
             }
@@ -162,7 +165,7 @@ def generate_general_params(num_classes: int, **kwargs) -> Dict[str, Any]:
     # general parameters
     general_params = {
         "num_classes": num_classes,
-        "max_booster_to_update": 2,
+        "max_booster_to_update": 1,
     }
 
     # update the general parameters with the kwargs
@@ -460,9 +463,11 @@ def compute_metrics(
     """
     mae_test = np.mean(np.abs(labels - y_test.values))
 
+    safe_binary_preds = np.clip(binary_preds, 1e-15, 1 - 1e-7)
+
     ranks = np.arange(binary_preds.shape[1])
     levels = y_test.values[:, None] > ranks[None, :]
-    loss_test = - np.mean(levels * np.log(binary_preds) + (1 - levels) * np.log(1- binary_preds), axis=1).mean()
+    loss_test = - np.mean(levels * np.log(safe_binary_preds) + (1 - levels) * np.log(1 - safe_binary_preds), axis=1).mean()
 
     all_labels = np.arange(preds.shape[1])
     distances = np.abs(all_labels[None, :] - y_test.values[:, None])
