@@ -40,7 +40,7 @@ class RUMBoost:
 
         if "args" in kwargs:
 
-            num_boosters = kwargs.get("args").functional_intercept + np.minimum(
+            num_boosters = kwargs.get("args").functional_intercept + np.maximum(
                 kwargs.get("args").functional_params
                 * len(kwargs.get("alt_spec_features")),
                 1,

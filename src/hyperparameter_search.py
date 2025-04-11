@@ -177,7 +177,7 @@ if __name__ == "__main__":
 
                 start_time = time.time()
                 print(f"Starting hyperparameter search for {model} with func params {func_params} and with func intercept {func_int}...")
-                study.optimize(objective, n_trials=50, n_jobs=8)
+                study.optimize(objective, n_trials=50, n_jobs=1)
                 end_time = time.time()
 
                 best_params = study.best_params
