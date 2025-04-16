@@ -84,6 +84,10 @@ def train(args):
             )
             with open(opt_hyperparams_path, "rb") as f:
                 optimal_hyperparams = pickle.load(f)
+                if "layer_sizes" in optimal_hyperparams:
+                    optimal_hyperparams["layer_sizes"] = [
+                        int(size) for size in optimal_hyperparams["layer_sizes"].split(",")
+                    ]
                 args.__dict__.update(optimal_hyperparams)
         except FileNotFoundError:
             print(

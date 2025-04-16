@@ -125,7 +125,7 @@ def plot_alt_spec_features(
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
-        plt.show()
+        # plt.show()
 
 
 def plot_ind_spec_constant(
@@ -307,10 +307,10 @@ def plot_ind_spec_constant(
 
 
 if __name__ == "__main__":
-    # plot_alt_spec_features(save_fig=True, functional_intercept=True)
-    # plot_alt_spec_features(save_fig=True, functional_intercept=False)
+    plot_alt_spec_features(save_fig=True, functional_intercept=True)
+    plot_alt_spec_features(save_fig=True, functional_intercept=False)
     plot_ind_spec_constant(save_fig=True)
-    # plot_ind_spec_constant(save_fig=True, functional_params=False, functional_intercept=True)
-    # plot_ind_spec_constant(save_fig=True, functional_params=True, functional_intercept=False)
+    plot_ind_spec_constant(save_fig=True, functional_params=False, functional_intercept=True)
+    plot_ind_spec_constant(save_fig=True, functional_params=True, functional_intercept=False)
     # plot_ind_spec_constant(functional_params=False, feature_to_highlight="female")
 
