@@ -89,9 +89,10 @@ def train(args):
             print(
                 f"Optimal hyperparameters not found for {args.model}. Using default hyperparameters."
             )
+            optimal_hyperparams = None
 
     if args.model == "RUMBoost":
-        if args.optimal_hyperparams:
+        if args.optimal_hyperparams and optimal_hyperparams:
             args.num_iterations = int(optimal_hyperparams["best_iteration"])
             args.early_stopping_rounds = None
         model = RUMBoost(
@@ -102,7 +103,7 @@ def train(args):
         )
         save_path = args.outpath + f"model_fi{args.functional_intercept}_fp{args.functional_params}.json"
     elif args.model == "TasteNet":
-        if args.optimal_hyperparams:
+        if args.optimal_hyperparams and optimal_hyperparams:
             args.num_epochs = int(optimal_hyperparams["best_iteration"])
             args.patience = args.num_epochs
         model = TasteNet(

@@ -80,7 +80,9 @@ class RUMBoost:
                     "min_sum_hessian_in_leaf": kwargs.get(
                         "args"
                     ).min_sum_hessian_in_leaf,
-                    "learning_rate": kwargs.get("args").learning_rate / num_boosters,
+                    "learning_rate": np.minimum(
+                        kwargs.get("args").learning_rate / num_boosters, 0.1
+                    ),
                     "max_bin": kwargs.get("args").max_bin,
                     "min_data_in_bin": kwargs.get("args").min_data_in_bin,
                     "min_data_in_leaf": kwargs.get("args").min_data_in_leaf,
@@ -236,6 +238,7 @@ class TasteNet:
             self.patience = kwargs.get("args").patience
             self.l1_norm = kwargs.get("args").lambda_l1
             self.l2_norm = kwargs.get("args").lambda_l2
+            self.verbose = kwargs.get("args").verbose
 
             self.functional_params = kwargs.get("args").functional_params
             self.functional_intercept = kwargs.get("args").functional_intercept
@@ -342,7 +345,7 @@ class TasteNet:
                 loss.backward()
                 self.optimiser.step()
 
-                if i % 50 == 0:
+                if self.verbose > 0 and i % 50 == 0:
                     print(
                         f"--- Batch {i}/{len(self.train_dataloader)}, loss: {loss.item():.4f}"
                     )
@@ -363,9 +366,10 @@ class TasteNet:
                         val_loss += self.criterion(output, levels).item()
                 val_loss /= len(self.valid_dataloader)
                 self.scheduler.step(val_loss)
-                print(
-                    f"Epoch {epoch + 1}/{self.num_epochs}: train loss = {train_loss:.4f}, val. loss: {val_loss:.4f}"
-                )
+                if self.verbose > 0:
+                    print(
+                        f"Epoch {epoch + 1}/{self.num_epochs}: train loss = {train_loss:.4f}, val. loss: {val_loss:.4f}"
+                    )
 
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss

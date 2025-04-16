@@ -171,6 +171,7 @@ class TasteParams(nn.Module):
             raise ValueError(
                 "At least one of func_intercept or func_params must be True."
             )
+
         all_layers = [l for l in layer_sizes]
         all_layers.insert(0, num_sd_chars)
         all_layers.append(

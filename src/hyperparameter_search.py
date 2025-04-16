@@ -2,6 +2,8 @@ import pandas as pd
 import time
 import optuna
 import pickle
+import gc
+import torch
 
 from sklearn.preprocessing import MinMaxScaler
 
@@ -12,6 +14,7 @@ from utils import split_dataset, compute_metrics
 from constants import PATH_TO_DATA_TRAIN, PATH_TO_FOLDS, alt_spec_features
 from models_wrapper import RUMBoost, TasteNet
 from parser import parse_cmdline_args
+
 
 
 def objective(trial, model, func_int, func_params):
@@ -61,12 +64,11 @@ def objective(trial, model, func_int, func_params):
             "model_type": "coral",
             "optim_interval": 20,
             "num_iterations": 3000,
-            "early_stopping_rounds": 100,
+            "early_stopping_rounds": 10,
             "verbose": 0,
-            "verbose_interval": 100,
             "functional_intercept": func_int,
             "functional_params": func_params,
-            "learning_rate": trial.suggest_float("learning_rate", 0.05, 0.1, step=0.05),
+            "learning_rate": 1, # is modified in the model, divided by num of updated boosters or 0.1
             "device": "cuda",
             "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 1.0, log=True),
             "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 1.0, log=True),
@@ -95,9 +97,10 @@ def objective(trial, model, func_int, func_params):
             "num_epochs": 200,
             "functional_intercept": func_int,
             "functional_params": func_params,
-            "batch_size": trial.suggest_int("batch_size", 256, 1024, step=256),
-            "learning_rate": trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True),
-            "patience": 20,
+            "verbose": 0,
+            "batch_size": trial.suggest_int("batch_size", 256, 512, step=256),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True),
+            "patience": 10,
             "dropout": trial.suggest_float("dropout", 0.0, 0.9),
             "device": "cuda",
             "act_func": trial.suggest_categorical(
@@ -110,19 +113,22 @@ def objective(trial, model, func_int, func_params):
                 trial.suggest_categorical(
                     "layer_sizes",
                     [
-                        [32],
-                        [64],
-                        [128],
-                        [32, 32],
-                        [64, 64],
-                        [128, 128],
-                        [64, 128],
-                        [128, 64],
-                        [64, 128, 64],
+                        "32",
+                        "64",
+                        "128",
+                        "32, 32",
+                        "64, 64",
+                        "128, 128",
+                        "64, 128",
+                        "128, 64",
+                        "64, 128, 64",
                     ],
                 ),
             ],
         }
+        dict_args["layer_sizes"] = [
+            int(size) for size in dict_args["layer_sizes"][0].split(", ")
+        ]
         args.__dict__.update(dict_args)
         model = TasteNet(
             alt_spec_features=alt_spec_features,
@@ -133,8 +139,10 @@ def objective(trial, model, func_int, func_params):
 
     avg_val_loss = 0.0
     avg_best_iter = 0.0
-    k = len(folds)
-    for train_idx, val_idx in folds:
+    k = 1
+    for i, (train_idx, val_idx) in enumerate(folds):
+        if i > 0:
+            continue # can only do 1 fold because of computational time
         # split data
         X_train, y_train = X.iloc[train_idx].copy(), y.iloc[train_idx].copy()
         X_val, y_val = X.iloc[val_idx].copy(), y.iloc[val_idx].copy()
@@ -158,6 +166,11 @@ def objective(trial, model, func_int, func_params):
 
     avg_best_iter /= k
     trial.set_user_attr("best_iteration", avg_best_iter)
+
+    del model
+
+    gc.collect()
+    torch.cuda.empty_cache()
     
     return avg_val_loss / k
 
@@ -167,7 +180,7 @@ if __name__ == "__main__":
     # set the random seed for reproducibility
     set_all_seeds(42)
 
-    for model in ["RUMBoost", "TasteNet"]:
+    for model in ["TasteNet"]: #"RUMBoost", 
         for func_int in [True, False]:
             for func_params in [True, False]:
 
@@ -177,7 +190,7 @@ if __name__ == "__main__":
 
                 start_time = time.time()
                 print(f"Starting hyperparameter search for {model} with func params {func_params} and with func intercept {func_int}...")
-                study.optimize(objective, n_trials=50, n_jobs=1)
+                study.optimize(objective, n_trials=100, n_jobs=1)
                 end_time = time.time()
 
                 best_params = study.best_params

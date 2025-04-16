@@ -3018,7 +3018,7 @@ def rum_train(
             )
         rumb.boost_from_parameter_space = params["boost_from_parameter_space"]
 
-        optim_interval = params.get("optim_interval", 1)
+        optim_interval = params.get("optim_interval", 20)
         optimise_ascs = (optim_interval > 0) and (
             "ordinal_logit" not in model_specification
         )
@@ -3436,7 +3436,7 @@ def rum_train(
 
             rumb._update_mu_or_alphas(res, optimise_mu, optimise_alphas, alpha_shape)
 
-        if optimise_thresholds and ((i + 1) % optim_interval == 0):
+        if optimise_thresholds and (i % optim_interval == 0): # need to optimise form first iteration for ordinal logit
 
             thresh_diff = threshold_to_diff(rumb.thresholds)
 
