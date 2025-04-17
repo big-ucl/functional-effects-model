@@ -17,13 +17,36 @@ all_models = {
     "TasteNet": TasteNet,
 }
 
+feature_names = {
+    "bmi": "BMI",
+    "chronic_mod": "Number of chronic conditions",
+    "daily_activities_index": "Daily activities index",
+    "finemotor": "Fine motor skills",
+    "grossmotor": "Gross motor skills",
+    "hospitalised_last_year_yes": "Hospitalised last year",
+    "lgmuscle": "Large muscle skills",
+    "maxgrip": "Max grip strength",
+    "mobilityind": "Mobility index",
+    "nursing_home_last_year_yes_permanently": "Nursing home last year (permanently)",
+    "nursing_home_last_year_yes_temporarily": "Nursing home last year (temporarily)",
+    "recall_1": "Recall 1",
+    "recall_2": "Recall 2",
+    "sphus_excellent": "Self-perceived health - excellent",
+    "sphus_fair": "Self-perceived health - fair",
+    "sphus_good": "Self-perceived health - good",
+    "sphus_poor": "Self-perceived health - poor",
+    "sphus_very_good": "Self-perceived health - very good",
+    "sphus_very_poor": "Self-perceived health - very poor",
+    "instrumental_activities_index": "Instrumental activities index",
+    "nb_doctor_visits": "Number of doctor visits",
+}
+
 
 def plot_alt_spec_features(
     alt_spec_features: List = alt_spec_features,
     all_models: Dict = all_models,
     path_to_data: str = PATH_TO_DATA,
     save_fig: bool = False,
-    functional_intercept: bool = False,
 ):
     """
     Plot the alternative-specific features for the models, if trained without functional parameters.
@@ -38,26 +61,34 @@ def plot_alt_spec_features(
         Path to the data folder.
     save_fig : bool
         Whether to save the figure or not.
-    functional_intercept : bool
-        If the model is trained with functional intercept.
     """
     # Load the models
     for model in all_models.keys():
         if model == "RUMBoost":
-            model_path = f"results/{model}/model_fi{functional_intercept}_fpFalse.json"
+            model_path_fi = f"results/{model}/model_fiTrue_fpFalse.json"
+            rumboost_fi = all_models[model]()
+            rumboost_fi.load_model(model_path_fi)
+            rumboost_params_fi = rumboost_fi.model.boosters[:-1]
+
+            model_path = f"results/{model}/model_fiFalse_fpFalse.json"
             rumboost = all_models[model]()
             rumboost.load_model(model_path)
-            if functional_intercept:
-                rumboost_params = rumboost.model.boosters[:-1]
-            else:
-                rumboost_params = rumboost.model.boosters
+            rumboost_params = rumboost.model.boosters
         elif model == "TasteNet":
-            model_path = f"results/{model}/model_fi{functional_intercept}_fpFalse.pth"
+            model_path = f"results/{model}/model_fiFalse_fpFalse.pth"
             tastenet = all_models[model]()
             tastenet.load_model(path=model_path)
             tastenet_params = [
                 params.detach().cpu().numpy()
                 for params in tastenet.model.util_module.mnl.parameters()
+            ][:-1][0]
+
+            model_path_fi = f"results/{model}/model_fiTrue_fpFalse.pth"
+            tastenet_fi = all_models[model]()
+            tastenet_fi.load_model(path=model_path_fi)
+            tastenet_params_fi = [
+                params.detach().cpu().numpy()
+                for params in tastenet_fi.model.util_module.mnl.parameters()
             ][:-1][0]
 
     # Plot the features
@@ -97,7 +128,7 @@ def plot_alt_spec_features(
 
     df = pd.read_csv(path_to_data)
 
-    colors = ["#264653", "#2a9d8f", "#f4a261"]
+    colors = ["#264653", "#2a9d8f","#0073a1", "#7cd2bf"]
 
     for i, as_feat in enumerate(alt_spec_features):
 
@@ -106,22 +137,33 @@ def plot_alt_spec_features(
         dummy_array = np.zeros((10000, len(alt_spec_features)))
         dummy_array[:, i] = x_scaled
         y_rumboost = rumboost_params[0].predict(dummy_array)
-        y_tastenet = tastenet_params[:, i] * x
+        y_tastenet = tastenet_params[:, i] * x / x.max()
+
+        y_rumboost_fi = rumboost_params_fi[0].predict(dummy_array)
+        y_tastenet_fi = tastenet_params_fi[:, i] * x / x.max()
 
         y_rumboost = [y - y_rumboost[0] for y in y_rumboost]
+        y_rumboost_fi = [y - y_rumboost_fi[0] for y in y_rumboost_fi]
 
         # Plot the features
         plt.figure(figsize=(2.62, 1.97), dpi=300)
 
         plt.plot(x, y_rumboost, label="RUMBoost", color=colors[0], linewidth=0.8)
-        plt.plot(x, y_tastenet, label="TasteNet/LMNL", color=colors[1], linewidth=0.8)
-        plt.xlabel(as_feat)
+        plt.plot(
+            x, y_rumboost_fi, label="RUMBoost - FI", color=colors[2], linewidth=0.8
+        )
+
+        plt.plot(x, y_tastenet, label="TasteNet", color=colors[1], linewidth=0.8)
+        plt.plot(
+            x, y_tastenet_fi, label="TasteNet - FI", color=colors[3], linewidth=0.8
+        )
+        # plt.xlabel(feature_names[as_feat])
         plt.ylabel("Utility")
         plt.legend()
         plt.tight_layout()
 
         if save_fig:
-            save_path = f"results/figures/{as_feat}_fi{functional_intercept}.png"
+            save_path = f"results/figures/{feature_names[as_feat]}.png"
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
@@ -216,7 +258,7 @@ def plot_ind_spec_constant(
         raise ValueError(
             "The model needs to be trained with functional parameters or functional intercept."
         )
-
+    print(num_plots)
     # Load the models
     for model in all_models.keys():
         if model == "RUMBoost":
@@ -239,10 +281,28 @@ def plot_ind_spec_constant(
             if not functional_params:
                 y_tastenet = y_tastenet.reshape(-1, 1)
 
-    colors = ["#264653", "#2a9d8f", "#f4a261"]
+    colors = ["#264653", "#2a9d8f","#0073a1", "#7cd2bf"]
 
     for j in range(num_plots):
         fig, axes = plt.subplots(1, 2, figsize=(8, 6), dpi=300)
+        if "RUMBoost" in all_models:
+            y_rumboost = rumboost_predictor[j].predict(df[socio_demo_chars])
+            min_val = y_rumboost.min()
+            max_val = y_rumboost.max()
+        if "TasteNet" in all_models:
+            min_val = min(min_val, y_tastenet[:, j].min())
+            max_val = max(max_val, y_tastenet[:, j].max())
+
+        bin_edges = np.linspace(min_val, max_val, 50) 
+
+        max_count = 0
+        for model in all_models.keys():
+            if model == "RUMBoost":
+                counts, _ = np.histogram(y_rumboost, bins=bin_edges)
+            elif model == "TasteNet":
+                counts, _ = np.histogram(y_tastenet[:, j], bins=bin_edges)
+            max_count = max(max_count, counts.max())
+
         for i, (model, ax) in enumerate(zip(all_models.keys(), axes.flatten())):
             if feature_to_highlight:
                 df[feature_to_highlight] = df[feature_to_highlight].astype("category")
@@ -251,11 +311,10 @@ def plot_ind_spec_constant(
             else:
                 hue = None
             if model == "RUMBoost":
-                y_rumboost = rumboost_predictor[j].predict(df[socio_demo_chars])
                 sns.histplot(
                     y_rumboost,
                     ax=ax,
-                    bins=50,
+                    bins=bin_edges,
                     color=colors[i],
                     hue=hue,
                     # multiple="stack",
@@ -264,34 +323,30 @@ def plot_ind_spec_constant(
                 sns.histplot(
                     y_tastenet[:, j],
                     ax=ax,
-                    bins=50,
+                    bins=bin_edges,
                     color=colors[i],
                     hue=hue,
                     # multiple="stack",
                 )
-            if model == "TasteNet" and not functional_params:
-                title = "LMNL"
-            else:
-                title = model
+
+            title = model
 
             if functional_params and j < num_plots - 1:
                 fig_title = f"{alt_spec_features[j]}"
             else:
                 fig_title = "Intercept"
             ax.set_title(title)
-            ax.set_xlabel("Functional values")
+            # ax.set_xlabel("Functional values")
             if i%2 == 0:
                 ax.set_ylabel("Count")
                 plt.title(fig_title, fontsize=8)
             else:
                 ax.set_ylabel("")
 
-        # # Defining custom 'xlim' and 'ylim' values.
-        # xlim = (-3.5, 3.5)
-        # ylim = (0, 5250)
+            xlim = (min_val - (max_val - min_val)*0.01, max_val + (max_val - min_val)*0.01)
+            ylim = (0, max_count * 1.1)
 
-        # # Setting the values for all axes.
-        # plt.setp(axes, xlim=xlim, ylim=ylim)
+            plt.setp(axes, xlim=xlim, ylim=ylim)
 
         if save_fig:
             if not feature_to_highlight:
@@ -307,8 +362,7 @@ def plot_ind_spec_constant(
 
 
 if __name__ == "__main__":
-    plot_alt_spec_features(save_fig=True, functional_intercept=True)
-    plot_alt_spec_features(save_fig=True, functional_intercept=False)
+    # plot_alt_spec_features(save_fig=True)
     plot_ind_spec_constant(save_fig=True)
     plot_ind_spec_constant(save_fig=True, functional_params=False, functional_intercept=True)
     plot_ind_spec_constant(save_fig=True, functional_params=True, functional_intercept=False)
