@@ -801,7 +801,6 @@ class RUMBoost:
             keepdims=True,
         )
 
-        # print(d2_pred_i_Vi)
         mask = np.array(self.rum_structure[j]["utility"])[None, :] == label[:, None]
         grad = np.where(
             mask[:, :, None],
@@ -3481,7 +3480,6 @@ def rum_train(
                     .cpu()
                     .numpy()
                 )
-                print(raw_preds.shape)
                 labels = rumb.labels[rumb.subsample_idx].cpu().numpy()
                 ascs = rumb.asc.cpu().numpy()
             else:
