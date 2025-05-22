@@ -246,6 +246,13 @@ def parse_cmdline_args(raw_args=None, parser=None):
         default=1,
         help="Number of latent variables for the model",
     )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="easySHARE",
+        help="Dataset to use for training",
+        choices=["easySHARE", "SwissMetro"]
+    )
 
 
     parser.set_defaults(feature=True)

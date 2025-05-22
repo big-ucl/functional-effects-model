@@ -39,17 +39,27 @@ class RUMBoost:
             )
 
         if "args" in kwargs:
+            # calculate number of boosters
+            num_alt_spec_boosters = 0
+            num_utility = 0
+            for key, value in kwargs.get("alt_spec_features").items():
+                num_alt_spec_boosters += len(value)
+                num_utility += 1
 
-            num_boosters = kwargs.get("args").functional_intercept + np.maximum(
-                kwargs.get("args").functional_params
-                * len(kwargs.get("alt_spec_features")),
-                1,
+            num_boosters = kwargs.get(
+                "args"
+            ).functional_intercept * num_utility + np.maximum(
+                kwargs.get("args").functional_params * num_alt_spec_boosters,
+                num_utility,
             )
             # generate ordinal spec
-            ordinal_spec = generate_ordinal_spec(
-                model_type=kwargs.get("args").model_type,
-                optim_interval=kwargs.get("args").optim_interval,
-            )
+            if kwargs.get("args").dataset == "easySHARE":
+                ordinal_spec = generate_ordinal_spec(
+                    model_type=kwargs.get("args").model_type,
+                    optim_interval=kwargs.get("args").optim_interval,
+                )
+            else:
+                ordinal_spec = {}
 
             # generate general params
             general_params = generate_general_params(
@@ -63,7 +73,7 @@ class RUMBoost:
             if kwargs.get("args").functional_params:
                 boost_from_param_space = [True] * num_boosters
                 if kwargs.get("args").functional_intercept:
-                    boost_from_param_space[-1] = False
+                    boost_from_param_space[-num_utility] = False
 
                 general_params["boost_from_parameter_space"] = boost_from_param_space
 
@@ -96,11 +106,17 @@ class RUMBoost:
                     self.rum_structure[-num_boosters:], hyperparameters
                 )
 
-            self.model_spec = {
-                "rum_structure": self.rum_structure,
-                "general_params": general_params,
-                "ordinal_logit": ordinal_spec,
-            }
+            if kwargs.get("args").dataset == "easySHARE":
+                self.model_spec = {
+                    "rum_structure": self.rum_structure,
+                    "general_params": general_params,
+                    "ordinal_logit": ordinal_spec,
+                }
+            else:
+                self.model_spec = {
+                    "rum_structure": self.rum_structure,
+                    "general_params": general_params,
+                }
 
             # using gpu or not
             if kwargs.get("args").device == "cuda":
@@ -221,6 +237,11 @@ class TasteNet:
 
         if "args" in kwargs:
             self.alt_spec_features = kwargs.get("alt_spec_features")
+            all_alt_spec_features = []
+            for key, value in self.alt_spec_features.items():
+                all_alt_spec_features.extend(value)
+            self.alt_spec_features = all_alt_spec_features
+
             self.socio_demo_chars = kwargs.get("socio_demo_chars")
             self.num_classes = kwargs.get("num_classes", 13)
             self.num_latent_vals = kwargs.get("num_latent_vals", 1)
@@ -247,7 +268,11 @@ class TasteNet:
                 self.model.parameters(),
                 lr=kwargs.get("args").learning_rate,
             )
-            self.criterion = torch.nn.BCEWithLogitsLoss()
+            self.criterion = (
+                torch.nn.BCEWithLogitsLoss()
+                if kwargs.get("args").dataset == "easySHARE"
+                else torch.nn.CrossEntropyLoss()
+            )
             self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 self.optimiser,
                 mode="min",

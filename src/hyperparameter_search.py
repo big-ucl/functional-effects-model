@@ -4,6 +4,7 @@ import optuna
 import pickle
 import gc
 import torch
+import os
 
 from sklearn.preprocessing import MinMaxScaler
 
@@ -11,13 +12,13 @@ from functools import partial
 
 from helper import set_all_seeds
 from utils import split_dataset, compute_metrics
-from constants import PATH_TO_DATA_TRAIN, PATH_TO_FOLDS, alt_spec_features
+from constants import PATH_TO_DATA_TRAIN, PATH_TO_DATA_VAL, PATH_TO_FOLDS, alt_spec_features
 from models_wrapper import RUMBoost, TasteNet
 from parser import parse_cmdline_args
 
 
 
-def objective(trial, model, func_int, func_params):
+def objective(trial, model, func_int, func_params, dataset):
     """
     Optuna objective function for the hyperparameter search.
 
@@ -33,27 +34,55 @@ def objective(trial, model, func_int, func_params):
         Whether to use functional parameters.
     """
 
+    all_alt_spec_features = []
+    for _, value in alt_spec_features[dataset].items():
+        all_alt_spec_features.extend(value)
+
     # load the data
-    data = pd.read_csv(PATH_TO_DATA_TRAIN)
+    if dataset == "SwissMetro":
+        data = pd.read_pickle(PATH_TO_DATA_TRAIN[dataset])
+        data_val = pd.read_pickle(PATH_TO_DATA_VAL[dataset])
 
-    with open(PATH_TO_FOLDS, "rb") as f:
-        folds = pickle.load(f)
+        features = [
+            col
+            for col in data.columns
+            if col not in ["CHOICE"]
+        ]
+        target = "CHOICE"
 
-    features = [
-        col
-        for col in data.columns
-        if col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
-    ]
-    target = "depression_scale"
+        X_train, y_train = data[features], data[target]
+        X_val, y_val = data_val[features], data_val[target]
 
-    X, y = data[features], data[target]
+        socio_demo_chars = [
+            col
+            for col in data.columns
+            if col not in all_alt_spec_features
+            and col not in ["CHOICE"]
+        ]
+        folds = [("dummy", "dummy")]
 
-    socio_demo_chars = [
-        col
-        for col in data.columns
-        if col not in alt_spec_features
-        and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
-    ]
+    elif dataset == "easySHARE":
+        data = pd.read_csv(PATH_TO_DATA_TRAIN[dataset])
+
+
+        with open(PATH_TO_FOLDS, "rb") as f:
+            folds = pickle.load(f)
+
+        features = [
+            col
+            for col in data.columns
+            if col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
+        ]
+        target = "depression_scale"
+
+        X, y = data[features], data[target]
+
+        socio_demo_chars = [
+            col
+            for col in data.columns
+            if col not in all_alt_spec_features
+            and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
+        ]
 
     #default args
     args = parse_cmdline_args()
@@ -61,7 +90,8 @@ def objective(trial, model, func_int, func_params):
     if model == "RUMBoost":
         # parameters for RUMBoost
         dict_args = {
-            "model_type": "coral",
+            "num_classes": 13 if dataset == "easySHARE" else 3,
+            "model_type": "coral" if dataset == "easySHARE" else "",
             "optim_interval": 20,
             "num_iterations": 3000,
             "early_stopping_rounds": 10,
@@ -94,6 +124,7 @@ def objective(trial, model, func_int, func_params):
         )
     elif model == "TasteNet":
         dict_args = {
+            "num_classes": 13 if dataset == "easySHARE" else 3,
             "num_epochs": 200,
             "functional_intercept": func_int,
             "functional_params": func_params,
@@ -144,16 +175,17 @@ def objective(trial, model, func_int, func_params):
         if i > 0:
             continue # can only do 1 fold because of computational time
         # split data
-        X_train, y_train = X.iloc[train_idx].copy(), y.iloc[train_idx].copy()
-        X_val, y_val = X.iloc[val_idx].copy(), y.iloc[val_idx].copy()
+        if dataset == "easySHARE":
+            X_train, y_train = X.iloc[train_idx].copy(), y.iloc[train_idx].copy()
+            X_val, y_val = X.iloc[val_idx].copy(), y.iloc[val_idx].copy()
 
         # scale the features
         scaler = MinMaxScaler()
-        X_train[alt_spec_features + socio_demo_chars] = scaler.fit_transform(
-            X_train[alt_spec_features + socio_demo_chars]
+        X_train[all_alt_spec_features + socio_demo_chars] = scaler.fit_transform(
+            X_train[all_alt_spec_features + socio_demo_chars]
         )
-        X_val[alt_spec_features + socio_demo_chars] = scaler.transform(
-            X_val[alt_spec_features + socio_demo_chars]
+        X_val[all_alt_spec_features + socio_demo_chars] = scaler.transform(
+            X_val[all_alt_spec_features + socio_demo_chars]
         )
 
         # build the dataloader
@@ -179,33 +211,37 @@ if __name__ == "__main__":
 
     # set the random seed for reproducibility
     set_all_seeds(42)
+    for dataset in ["SwissMetro"]:#, "easySHARE"]:
+        for model in ["TasteNet", "RUMBoost"]:
+            for func_int in [True, False]:
+                for func_params in [True, False]:
 
-    for model in ["TasteNet"]: #"RUMBoost", 
-        for func_int in [True, False]:
-            for func_params in [True, False]:
+                    objective = partial(objective, model=model, func_int=func_int, func_params=func_params, dataset=dataset)
 
-                objective = partial(objective, model=model, func_int=func_int, func_params=func_params)
+                    study = optuna.create_study(direction="minimize")
 
-                study = optuna.create_study(direction="minimize")
+                    start_time = time.time()
+                    print(f"Starting hyperparameter search on dataset {dataset} for {model} with func params {func_params} and with func intercept {func_int}...")
+                    study.optimize(objective, n_trials=100, n_jobs=1)
+                    end_time = time.time()
 
-                start_time = time.time()
-                print(f"Starting hyperparameter search for {model} with func params {func_params} and with func intercept {func_int}...")
-                study.optimize(objective, n_trials=100, n_jobs=1)
-                end_time = time.time()
+                    best_params = study.best_params
+                    best_value = study.best_value
+                    best_trial = study.best_trial
+                    optimisation_time = end_time - start_time
 
-                best_params = study.best_params
-                best_value = study.best_value
-                best_trial = study.best_trial
-                optimisation_time = end_time - start_time
+                    best_params["best_iteration"] = best_trial.user_attrs["best_iteration"]
 
-                best_params["best_iteration"] = best_trial.user_attrs["best_iteration"]
+                    print(f"Best params: {best_params}")
+                    print(f"Best value: {best_value}")
 
-                print(f"Best params: {best_params}")
-                print(f"Best value: {best_value}")
+                    path = f"results/{dataset}/{model}/"
+                    # create the directory if it doesn't exist
+                    os.makedirs(path, exist_ok=True)
 
-                with open(f"results/{model}/best_params_fi{func_int}_fp{func_params}.pkl", "wb") as f:
-                    pickle.dump(best_params, f)
+                    with open(f"results/{dataset}/{model}/best_params_fi{func_int}_fp{func_params}.pkl", "wb") as f:
+                        pickle.dump(best_params, f)
 
-                with open(f"results/{model}/hyper_search_info_fi{func_int}_fp{func_params}.txt", "w") as f:
-                    f.write(f"Best value: {best_value}\n")
-                    f.write(f"Optimisation time: {optimisation_time}\n")
+                    with open(f"results/{dataset}/{model}/hyper_search_info_fi{func_int}_fp{func_params}.txt", "w") as f:
+                        f.write(f"Best value: {best_value}\n")
+                        f.write(f"Optimisation time: {optimisation_time}\n")

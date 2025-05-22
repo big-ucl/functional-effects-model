@@ -31,8 +31,8 @@ def generate_rum_structure(
 
     Parameters
     ----------
-    alt_spec_features: Optional[List[str]]
-        The alternative-specific features to be used in the rum structure.
+    alt_spec_features: Optional[Dict[str, List[str]]]
+        The alternative-specific features to be used in the rum structure. The dictionary keys are the utility indices and the values are the features to be used in the rum structure.
     socio_demo_chars: Optional[List[str]]
         The socio-demographic characteristics to be used in the rum structure. They will represent the individual-specific constant learnt from the data.
     functional_intercept: Optional[bool]
@@ -52,66 +52,69 @@ def generate_rum_structure(
 
     # alternative-specific features, one per ensemble
     if not functional_params:
-        monotone_constraints = [0] * len(alt_spec_features)
-        interaction_constraints = [list(range(len(alt_spec_features)))]
-        rum_structure_as = [
-            {
-                "variables": alt_spec_features,
-                "utility": [0],
-                "boosting_params": {
-                    "monotone_constraints_method": "advanced",
-                    "max_depth": 1,
-                    "n_jobs": -1,
-                    "learning_rate": 0.1,
-                    "verbose": -1,
-                    "monotone_constraints": monotone_constraints,
-                    "interaction_constraints": interaction_constraints,
-                },
-                "shared": False
-            }
-        ]
-        # add the alternative-specific features to the rum_structure
-        rum_structure.extend(rum_structure_as)
+        for key, value in enumerate(alt_spec_features):
+            monotone_constraints = [0] * len(value)
+            interaction_constraints = [list(range(len(value)))]
+            rum_structure_as = [
+                {
+                    "variables": value,
+                    "utility": [key],
+                    "boosting_params": {
+                        "monotone_constraints_method": "advanced",
+                        "max_depth": 1,
+                        "n_jobs": -1,
+                        "learning_rate": 0.1,
+                        "verbose": -1,
+                        "monotone_constraints": monotone_constraints,
+                        "interaction_constraints": interaction_constraints,
+                    },
+                    "shared": False
+                }
+            ]
+            # add the alternative-specific features to the rum_structure
+            rum_structure.extend(rum_structure_as)
     else:
         # if functional parameters are used, add them to the rum_structure
-        rum_structure_params = [
-            {
-                "variables": socio_demo_chars,
-                "utility": [0],
-                "boosting_params": {
-                    "monotone_constraints_method": "advanced",
-                    "n_jobs": -1,
-                    "learning_rate": 0.1,
-                    "monotone_constraints": [0],
-                    "verbose": -1,
-                },
-                "shared": False,
-                "endogenous_variable": f
-            }
-            for f in alt_spec_features
-        ]
-        # add the functional parameters to the rum_structure
-        rum_structure.extend(rum_structure_params)
+        for key, value in enumerate(alt_spec_features):
+            rum_structure_params = [
+                {
+                    "variables": socio_demo_chars,
+                    "utility": [key],
+                    "boosting_params": {
+                        "monotone_constraints_method": "advanced",
+                        "n_jobs": -1,
+                        "learning_rate": 0.1,
+                        "monotone_constraints": [0],
+                        "verbose": -1,
+                    },
+                    "shared": False,
+                    "endogenous_variable": f
+                }
+                for f in value
+            ]
+            # add the functional parameters to the rum_structure
+            rum_structure.extend(rum_structure_params)
 
     # socio-demographic characteristics, all in one ensemble
     if functional_intercept:
-        rum_structure_sd = [
-            {
-                "variables": socio_demo_chars,
-                "utility": [0],
-                "boosting_params": {
-                    "monotone_constraints_method": "advanced",
-                    "n_jobs": -1,
-                    "learning_rate": 0.1,
-                    "verbose": -1,
-                },
-                "shared": False,
-            }
-            
-        ]
+        for key, _ in enumerate(alt_spec_features):
+            rum_structure_sd = [
+                {
+                    "variables": socio_demo_chars,
+                    "utility": [key],
+                    "boosting_params": {
+                        "monotone_constraints_method": "advanced",
+                        "n_jobs": -1,
+                        "learning_rate": 0.1,
+                        "verbose": -1,
+                    },
+                    "shared": False,
+                }
+                
+            ]
 
-        # add the socio-demographic characteristics to the rum_structure
-        rum_structure.extend(rum_structure_sd)
+            # add the socio-demographic characteristics to the rum_structure
+            rum_structure.extend(rum_structure_sd)
 
     return rum_structure
 

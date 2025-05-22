@@ -31,13 +31,18 @@ def train(args):
     set_all_seeds(args.seed)
 
     # load the data
-    if args.optimal_hyperparams:
-        data_train = pd.read_csv(PATH_TO_DATA_TRAIN)
-        data_test = pd.read_csv(PATH_TO_DATA_TEST)
-        columns = data_train.columns
-    else:
-        data = pd.read_csv(PATH_TO_DATA)
-        columns = data.columns
+    if args.dataset == "SwissMetro":
+        if args.optimal_hyperparams:
+            data_train = pd.read_pickle(PATH_TO_DATA_TRAIN)
+            data_test = pd.read_pickle(PATH_TO_DATA_TEST)
+    elif args.dataset == "easySHARE":
+        if args.optimal_hyperparams:
+            data_train = pd.read_csv(PATH_TO_DATA_TRAIN)
+            data_test = pd.read_csv(PATH_TO_DATA_TEST)
+            columns = data_train.columns
+        else:
+            data = pd.read_csv(PATH_TO_DATA)
+            columns = data.columns
 
     features = [
         col
@@ -80,7 +85,7 @@ def train(args):
         # load the optimal hyperparameters for the model
         try:
             opt_hyperparams_path = (
-                f"results/{args.model}/best_params_fi{args.functional_intercept}_fp{args.functional_params}.pkl"
+                f"results/{args.dataset}/{args.model}/best_params_fi{args.functional_intercept}_fp{args.functional_params}.pkl"
             )
             with open(opt_hyperparams_path, "rb") as f:
                 optimal_hyperparams = pickle.load(f)
