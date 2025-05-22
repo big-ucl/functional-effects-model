@@ -42,9 +42,12 @@ class RUMBoost:
             # calculate number of boosters
             num_alt_spec_boosters = 0
             num_utility = 0
+            min_utility = np.inf
             for key, value in kwargs.get("alt_spec_features").items():
                 num_alt_spec_boosters += len(value)
                 num_utility += 1
+                if len(value) < min_utility:
+                    min_utility = len(value)
 
             num_boosters = kwargs.get(
                 "args"
@@ -73,11 +76,18 @@ class RUMBoost:
             if kwargs.get("args").functional_params:
                 boost_from_param_space = [True] * num_boosters
                 if kwargs.get("args").functional_intercept:
-                    boost_from_param_space[-num_utility] = False
+                    boost_from_param_space[-num_utility:] = [False] * num_utility
 
                 general_params["boost_from_parameter_space"] = boost_from_param_space
 
-            general_params["max_booster_to_update"] = num_boosters
+            max_boosters = (
+                np.maximum(
+                    num_utility * min_utility * kwargs.get("args").functional_params,
+                    num_utility,
+                )
+                + num_utility * kwargs.get("args").functional_intercept
+            )
+            general_params["max_booster_to_update"] = max_boosters
 
             if (
                 kwargs.get("args").functional_intercept
@@ -91,7 +101,8 @@ class RUMBoost:
                         "args"
                     ).min_sum_hessian_in_leaf,
                     "learning_rate": np.minimum(
-                        kwargs.get("args").learning_rate / num_boosters, 0.1
+                        kwargs.get("args").learning_rate / max_boosters,
+                        0.1,
                     ),
                     "max_bin": kwargs.get("args").max_bin,
                     "min_data_in_bin": kwargs.get("args").min_data_in_bin,
@@ -238,7 +249,9 @@ class TasteNet:
         if "args" in kwargs:
             self.alt_spec_features = kwargs.get("alt_spec_features")
             all_alt_spec_features = []
-            for key, value in self.alt_spec_features.items():
+            self.utility_structure = {}
+            for i, (key, value) in enumerate(self.alt_spec_features.items()):
+                self.utility_structure[key] = (i * len(value), (i + 1) * len(value))
                 all_alt_spec_features.extend(value)
             self.alt_spec_features = all_alt_spec_features
 
@@ -246,12 +259,15 @@ class TasteNet:
             self.num_classes = kwargs.get("num_classes", 13)
             self.num_latent_vals = kwargs.get("num_latent_vals", 1)
 
+            self.dataset = kwargs.get("args").dataset
+
             self.model = TasteNetBuild(
                 kwargs.get("args"),
                 len(self.alt_spec_features),
                 len(self.socio_demo_chars),
                 self.num_classes,
                 self.num_latent_vals,
+                self.utility_structure,
             )
 
             self.batch_size = kwargs.get("args").batch_size
@@ -349,12 +365,16 @@ class TasteNet:
                 x = x.to(self.device)
                 y = y.to(self.device)
                 z = z.to(self.device)
-                classes = torch.arange(self.num_classes - 1).to(self.device)
-                levels = (y[:, None] > classes[None, :]).float()
+
+                if self.dataset == "easySHARE":
+                    levels = (y[:, None] > classes[None, :]).float()
+                    classes = torch.arange(self.num_classes - 1).to(self.device)
+                else:
+                    levels = y
 
                 self.optimiser.zero_grad()
 
-                output = self.model(x, z)  # binary logits
+                output = self.model(x, z)  # logits
                 loss = self.criterion(output, levels)
                 train_loss += loss.item()
 
@@ -384,8 +404,11 @@ class TasteNet:
                         x = x.to(self.device)
                         y = y.to(self.device)
                         z = z.to(self.device)
-                        classes = torch.arange(self.num_classes - 1).to(self.device)
-                        levels = (y[:, None] > classes[None, :]).float()
+                        if self.dataset == "easySHARE":
+                            classes = torch.arange(self.num_classes - 1).to(self.device)
+                            levels = (y[:, None] > classes[None, :]).float()
+                        else:
+                            levels = y
 
                         output = self.model(x, z)  # binary logits
                         val_loss += self.criterion(output, levels).item()
@@ -466,17 +489,22 @@ class TasteNet:
             .to(self.device)
         )
         logits = self.model(x, z)
-        binary_preds = torch.sigmoid(logits)
-        label_pred = torch.sum(binary_preds > 0.5, axis=1)
-        preds = -torch.diff(
-            binary_preds,
-            dim=1,
-            prepend=torch.ones(x.shape[0], device=self.device)[:, None],
-            append=torch.zeros(x.shape[0], device=self.device)[:, None],
-        )
+        if self.dataset == "easySHARE":
+            binary_preds = torch.sigmoid(logits)
+            label_pred = torch.sum(binary_preds > 0.5, axis=1)
+            preds = -torch.diff(
+                binary_preds,
+                dim=1,
+                prepend=torch.ones(x.shape[0], device=self.device)[:, None],
+                append=torch.zeros(x.shape[0], device=self.device)[:, None],
+            )
+        else:
+            preds = torch.softmax(logits, dim=1)
+            label_pred = None
+            binary_preds = None
 
         return (
             preds.detach().cpu().numpy(),
-            binary_preds.detach().cpu().numpy(),
-            label_pred.detach().cpu().numpy(),
+            binary_preds.detach().cpu().numpy() if binary_preds is not None else None,
+            label_pred.detach().cpu().numpy() if label_pred is not None else None,
         )

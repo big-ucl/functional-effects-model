@@ -20,6 +20,7 @@ TrainTestSplit = Union[
     ],  # train, val and test
 ]
 
+
 def generate_rum_structure(
     alt_spec_features: Optional[List[str]] = None,
     socio_demo_chars: Optional[List[str]] = None,
@@ -52,8 +53,16 @@ def generate_rum_structure(
 
     # alternative-specific features, one per ensemble
     if not functional_params:
-        for key, value in enumerate(alt_spec_features):
-            monotone_constraints = [0] * len(value)
+        for key, value in alt_spec_features.items():
+            # monotone constraints for SwissMetro dataset
+            if "TRAIN_TT" in value:
+                monotone_constraints = [-1, -1, -1]
+            elif "SM_TT" in value:
+                monotone_constraints = [-1, -1, -1, 0]
+            elif "CAR_TT" in value:
+                monotone_constraints = [-1, -1]
+            else:
+                monotone_constraints = [0] * len(value)
             interaction_constraints = [list(range(len(value)))]
             rum_structure_as = [
                 {
@@ -68,14 +77,22 @@ def generate_rum_structure(
                         "monotone_constraints": monotone_constraints,
                         "interaction_constraints": interaction_constraints,
                     },
-                    "shared": False
+                    "shared": False,
                 }
             ]
             # add the alternative-specific features to the rum_structure
             rum_structure.extend(rum_structure_as)
     else:
         # if functional parameters are used, add them to the rum_structure
-        for key, value in enumerate(alt_spec_features):
+        for key, value in alt_spec_features.items():
+            if "TRAIN_TT" in value:
+                monotone_constraints = [-1, -1, -1]
+            elif "SM_TT" in value:
+                monotone_constraints = [-1, -1, -1, 0]
+            elif "CAR_TT" in value:
+                monotone_constraints = [-1, -1]
+            else:
+                monotone_constraints = [0] * len(value)
             rum_structure_params = [
                 {
                     "variables": socio_demo_chars,
@@ -84,20 +101,20 @@ def generate_rum_structure(
                         "monotone_constraints_method": "advanced",
                         "n_jobs": -1,
                         "learning_rate": 0.1,
-                        "monotone_constraints": [0],
+                        "monotone_constraints": [monotone_constraints[i]],
                         "verbose": -1,
                     },
                     "shared": False,
-                    "endogenous_variable": f
+                    "endogenous_variable": f,
                 }
-                for f in value
+                for i, f in enumerate(value)
             ]
             # add the functional parameters to the rum_structure
             rum_structure.extend(rum_structure_params)
 
     # socio-demographic characteristics, all in one ensemble
     if functional_intercept:
-        for key, _ in enumerate(alt_spec_features):
+        for key, _ in alt_spec_features.items():
             rum_structure_sd = [
                 {
                     "variables": socio_demo_chars,
@@ -110,7 +127,6 @@ def generate_rum_structure(
                     },
                     "shared": False,
                 }
-                
             ]
 
             # add the socio-demographic characteristics to the rum_structure
@@ -470,10 +486,58 @@ def compute_metrics(
 
     ranks = np.arange(binary_preds.shape[1])
     levels = y_test.values[:, None] > ranks[None, :]
-    loss_test = - np.mean(levels * np.log(safe_binary_preds) + (1 - levels) * np.log(1 - safe_binary_preds), axis=1).mean()
+    loss_test = -np.mean(
+        levels * np.log(safe_binary_preds)
+        + (1 - levels) * np.log(1 - safe_binary_preds),
+        axis=1,
+    ).mean()
 
     all_labels = np.arange(preds.shape[1])
     distances = np.abs(all_labels[None, :] - y_test.values[:, None])
     emae_test = np.mean(preds * distances, axis=1).mean()
 
     return mae_test, loss_test, emae_test
+
+
+def cross_entropy(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+) -> float:
+    """
+    Compute the cross entropy loss.
+
+    Parameters
+    ----------
+    y_true: np.ndarray
+        The true labels.
+    y_pred: np.ndarray
+        The predicted labels.
+
+    Returns
+    -------
+    loss: float
+        The cross entropy loss.
+    """
+    indices = range(len(y_true))
+    return -np.mean(np.log(y_pred[indices, y_true]))
+
+
+def pkl_to_df(pkl_path: str) -> pd.DataFrame:
+    """
+    Convert a pickle file to a pandas dataframe.
+    Parameters
+    ----------
+    pkl_path: str
+        The path to the pickle file.
+    Returns
+    -------
+    df: pd.DataFrame
+        The dataframe containing the data from the pickle file.
+    """
+    data = pd.read_pickle(pkl_path)
+    data_df = pd.DataFrame(data["x"], columns=data["x_names"])
+    data_df[data["z_names"]] = data["z"]
+    data_df["CHOICE"] = data["y"] - 1
+    data_df["CHOICE"] = data_df["CHOICE"].astype(int)
+    data = data_df.copy()
+    return data

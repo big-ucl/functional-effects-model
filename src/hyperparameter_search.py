@@ -11,11 +11,15 @@ from sklearn.preprocessing import MinMaxScaler
 from functools import partial
 
 from helper import set_all_seeds
-from utils import split_dataset, compute_metrics
-from constants import PATH_TO_DATA_TRAIN, PATH_TO_DATA_VAL, PATH_TO_FOLDS, alt_spec_features
+from utils import pkl_to_df
+from constants import (
+    PATH_TO_DATA_TRAIN,
+    PATH_TO_DATA_VAL,
+    PATH_TO_FOLDS,
+    alt_spec_features,
+)
 from models_wrapper import RUMBoost, TasteNet
 from parser import parse_cmdline_args
-
 
 
 def objective(trial, model, func_int, func_params, dataset):
@@ -32,6 +36,8 @@ def objective(trial, model, func_int, func_params, dataset):
         Whether to use functional intercept.
     func_params : bool
         Whether to use functional parameters.
+    dataset : str
+        The dataset to use.
     """
 
     all_alt_spec_features = []
@@ -40,14 +46,10 @@ def objective(trial, model, func_int, func_params, dataset):
 
     # load the data
     if dataset == "SwissMetro":
-        data = pd.read_pickle(PATH_TO_DATA_TRAIN[dataset])
-        data_val = pd.read_pickle(PATH_TO_DATA_VAL[dataset])
+        data = pkl_to_df(PATH_TO_DATA_TRAIN[dataset])
+        data_val = pkl_to_df(PATH_TO_DATA_VAL[dataset])
 
-        features = [
-            col
-            for col in data.columns
-            if col not in ["CHOICE"]
-        ]
+        features = [col for col in data.columns if col not in ["CHOICE"]]
         target = "CHOICE"
 
         X_train, y_train = data[features], data[target]
@@ -56,16 +58,14 @@ def objective(trial, model, func_int, func_params, dataset):
         socio_demo_chars = [
             col
             for col in data.columns
-            if col not in all_alt_spec_features
-            and col not in ["CHOICE"]
+            if col not in all_alt_spec_features and col not in ["CHOICE"]
         ]
         folds = [("dummy", "dummy")]
 
     elif dataset == "easySHARE":
         data = pd.read_csv(PATH_TO_DATA_TRAIN[dataset])
 
-
-        with open(PATH_TO_FOLDS, "rb") as f:
+        with open(PATH_TO_FOLDS[dataset], "rb") as f:
             folds = pickle.load(f)
 
         features = [
@@ -84,21 +84,23 @@ def objective(trial, model, func_int, func_params, dataset):
             and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
         ]
 
-    #default args
+    # default args
     args = parse_cmdline_args()
+
+    num_classes = 13 if dataset == "easySHARE" else 3
 
     if model == "RUMBoost":
         # parameters for RUMBoost
         dict_args = {
-            "num_classes": 13 if dataset == "easySHARE" else 3,
+            "dataset": dataset,
             "model_type": "coral" if dataset == "easySHARE" else "",
             "optim_interval": 20,
             "num_iterations": 3000,
-            "early_stopping_rounds": 10,
+            "early_stopping_rounds": 100,
             "verbose": 0,
             "functional_intercept": func_int,
             "functional_params": func_params,
-            "learning_rate": 1, # is modified in the model, divided by num of updated boosters or 0.1
+            "learning_rate": 1,  # is modified in the model, divided by num of updated boosters or 0.1
             "device": "cuda",
             "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 1.0, log=True),
             "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 1.0, log=True),
@@ -117,14 +119,14 @@ def objective(trial, model, func_int, func_params, dataset):
         }
         args.__dict__.update(dict_args)
         model = RUMBoost(
-            alt_spec_features=alt_spec_features,
+            alt_spec_features=alt_spec_features[dataset],
             socio_demo_chars=socio_demo_chars,
-            num_classes=13,
+            num_classes=num_classes,
             args=args,
         )
     elif model == "TasteNet":
         dict_args = {
-            "num_classes": 13 if dataset == "easySHARE" else 3,
+            "dataset": dataset,
             "num_epochs": 200,
             "functional_intercept": func_int,
             "functional_params": func_params,
@@ -162,9 +164,10 @@ def objective(trial, model, func_int, func_params, dataset):
         ]
         args.__dict__.update(dict_args)
         model = TasteNet(
-            alt_spec_features=alt_spec_features,
+            alt_spec_features=alt_spec_features[dataset],
             socio_demo_chars=socio_demo_chars,
-            num_classes=13,
+            num_classes=num_classes,
+            num_latent_vals=1 if dataset == "easySHARE" else None,
             args=args,
         )
 
@@ -173,7 +176,7 @@ def objective(trial, model, func_int, func_params, dataset):
     k = 1
     for i, (train_idx, val_idx) in enumerate(folds):
         if i > 0:
-            continue # can only do 1 fold because of computational time
+            continue  # can only do 1 fold because of computational time
         # split data
         if dataset == "easySHARE":
             X_train, y_train = X.iloc[train_idx].copy(), y.iloc[train_idx].copy()
@@ -203,7 +206,7 @@ def objective(trial, model, func_int, func_params, dataset):
 
     gc.collect()
     torch.cuda.empty_cache()
-    
+
     return avg_val_loss / k
 
 
@@ -211,17 +214,25 @@ if __name__ == "__main__":
 
     # set the random seed for reproducibility
     set_all_seeds(42)
-    for dataset in ["SwissMetro"]:#, "easySHARE"]:
+    for dataset in ["SwissMetro"]:  # , "easySHARE"]:
         for model in ["TasteNet", "RUMBoost"]:
             for func_int in [True, False]:
                 for func_params in [True, False]:
 
-                    objective = partial(objective, model=model, func_int=func_int, func_params=func_params, dataset=dataset)
+                    objective = partial(
+                        objective,
+                        model=model,
+                        func_int=func_int,
+                        func_params=func_params,
+                        dataset=dataset,
+                    )
 
                     study = optuna.create_study(direction="minimize")
 
                     start_time = time.time()
-                    print(f"Starting hyperparameter search on dataset {dataset} for {model} with func params {func_params} and with func intercept {func_int}...")
+                    print(
+                        f"Starting hyperparameter search on dataset {dataset} for {model} with func params {func_params} and with func intercept {func_int}..."
+                    )
                     study.optimize(objective, n_trials=100, n_jobs=1)
                     end_time = time.time()
 
@@ -230,7 +241,9 @@ if __name__ == "__main__":
                     best_trial = study.best_trial
                     optimisation_time = end_time - start_time
 
-                    best_params["best_iteration"] = best_trial.user_attrs["best_iteration"]
+                    best_params["best_iteration"] = best_trial.user_attrs[
+                        "best_iteration"
+                    ]
 
                     print(f"Best params: {best_params}")
                     print(f"Best value: {best_value}")
@@ -239,9 +252,15 @@ if __name__ == "__main__":
                     # create the directory if it doesn't exist
                     os.makedirs(path, exist_ok=True)
 
-                    with open(f"results/{dataset}/{model}/best_params_fi{func_int}_fp{func_params}.pkl", "wb") as f:
+                    with open(
+                        f"results/{dataset}/{model}/best_params_fi{func_int}_fp{func_params}.pkl",
+                        "wb",
+                    ) as f:
                         pickle.dump(best_params, f)
 
-                    with open(f"results/{dataset}/{model}/hyper_search_info_fi{func_int}_fp{func_params}.txt", "w") as f:
+                    with open(
+                        f"results/{dataset}/{model}/hyper_search_info_fi{func_int}_fp{func_params}.txt",
+                        "w",
+                    ) as f:
                         f.write(f"Best value: {best_value}\n")
                         f.write(f"Optimisation time: {optimisation_time}\n")
