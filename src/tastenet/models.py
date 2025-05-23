@@ -25,7 +25,6 @@ class TasteNet(nn.Module):
         num_classes,
         num_latent_vals=None,
         utility_structure=None,
-        monotonic_constraints=None,
     ):
         """
         Initialize the TasteNet class.
@@ -38,7 +37,6 @@ class TasteNet(nn.Module):
         num_latent_vals (int, optional): number of latent values. Defaults to None.
             Useful only for ordinal regression problems, since the number of latent vars is 1.
         utility_structure (str, optional): structure of the utility function. Defaults to None.
-        monotonic_constraints (list[int], optional): constraints for the monotonicity of the alternative specific functions. Defaults to None.
         """
         super(TasteNet, self).__init__()
 
@@ -57,7 +55,6 @@ class TasteNet(nn.Module):
                 num_sd_chars,
                 self.func_intercept,
                 self.func_params,
-                monotonic_constraints=monotonic_constraints,
             )
         self.util_module = Utility(
             args,
@@ -74,8 +71,8 @@ class TasteNet(nn.Module):
     def forward(self, x, z=None):
         if self.func_intercept or self.func_params:
             b = self.params_module(z)  # taste parameters, (N,1)
-            if self.num_classes == 3 and self.func_params:
-                b = self.monotonic_constraints(b)
+            # if self.num_classes == 3 and self.func_params:
+            #     b = self.monotonic_constraints(b)
         else:
             b = None
         v = self.util_module(x, b)  # no softmax here
@@ -190,7 +187,6 @@ class TasteParams(nn.Module):
         num_sd_chars,
         func_intercept=True,
         func_params=True,
-        monotonic_constraints=None,
     ):
         """Initialize the TasteParams class.
         Args:
@@ -201,7 +197,6 @@ class TasteParams(nn.Module):
         num_alt_features (int): number of alternative features.
         num_classes (int): number of classes.
         num_sd_chars (int): number of socio-demographic characteristics.
-        monotonic_constraints (list[int], optional): constraints for the monotonicity of the alternative specific functions. Defaults to None.
         """
         if not func_intercept and not func_params:
             raise ValueError(
@@ -226,14 +221,6 @@ class TasteParams(nn.Module):
                     self.seq.add_module(
                         name=f"BN{i+1}", module=nn.BatchNorm1d(out_size)
                     )
-            if monotonic_constraints is not None and monotonic_constraints[i] != 0:
-                m = torch.tensor(monotonic_constraints[i]).to(
-                    device=torch.device(args.device)
-                )
-                self.seq.add_module(
-                    name=f"MC{i+1}",
-                    module=m * get_act(args.act_func),
-                )
         self.args = args
 
     def forward(self, z):
@@ -278,7 +265,7 @@ class MNL_layer(nn.Module):
         self.mnl = nn.ModuleList()
         self.utility_structure = utility_structure
         for _, v in utility_structure.items():
-            self.mnl.append(nn.Linear(v[1] - v[0], 1))
+            self.mnl.append(nn.Linear(v[1] - v[0], 1, bias=False))
 
     def forward(self, x, b=None):
         """return the output of MNL complex layer.

@@ -14,7 +14,7 @@ PATH_TO_DATA_TEST = {
     "easySHARE": "../data/easySHARE/easySHARE_preprocessed_test.csv",
     "SwissMetro": "../data/SwissMetro/test.pkl",
 }
-PATH_TO_FOLDS = {"easySHARE": "../data/easySHARE/easySHARE_folds.pkl", "SwissMetro": ""}
+PATH_TO_FOLDS = {"easySHARE": "../data/easySHARE/easySHARE_preprocessed_folds.pickle", "SwissMetro": ""}
 
 alt_spec_features = {
     "easySHARE": {

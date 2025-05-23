@@ -214,8 +214,8 @@ if __name__ == "__main__":
 
     # set the random seed for reproducibility
     set_all_seeds(42)
-    for dataset in ["SwissMetro"]:  # , "easySHARE"]:
-        for model in ["TasteNet", "RUMBoost"]:
+    for dataset in ["SwissMetro"]: #"easySHARE"]:
+        for model in ["TasteNet"]:#,"RUMBoost"]:
             for func_int in [True, False]:
                 for func_params in [True, False]:
 

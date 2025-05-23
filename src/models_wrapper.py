@@ -251,7 +251,10 @@ class TasteNet:
             all_alt_spec_features = []
             self.utility_structure = {}
             for i, (key, value) in enumerate(self.alt_spec_features.items()):
-                self.utility_structure[key] = (i * len(value), (i + 1) * len(value))
+                self.utility_structure[key] = (
+                    len(all_alt_spec_features),
+                    len(all_alt_spec_features) + len(value),
+                )
                 all_alt_spec_features.extend(value)
             self.alt_spec_features = all_alt_spec_features
 
@@ -367,8 +370,8 @@ class TasteNet:
                 z = z.to(self.device)
 
                 if self.dataset == "easySHARE":
-                    levels = (y[:, None] > classes[None, :]).float()
                     classes = torch.arange(self.num_classes - 1).to(self.device)
+                    levels = (y[:, None] > classes[None, :]).float()
                 else:
                     levels = y
 

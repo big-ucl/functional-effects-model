@@ -48,7 +48,7 @@ def parse_cmdline_args(raw_args=None, parser=None):
     parser.add_argument(
         "--learning_rate",
         type=float,
-        default=1,
+        default=0.001,
         help="Learning rate for the model",
     )
     parser.add_argument(
