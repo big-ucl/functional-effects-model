@@ -71,8 +71,8 @@ class TasteNet(nn.Module):
     def forward(self, x, z=None):
         if self.func_intercept or self.func_params:
             b = self.params_module(z)  # taste parameters, (N,1)
-            # if self.num_classes == 3 and self.func_params:
-            #     b = self.monotonic_constraints(b)
+            if self.num_classes == 3 and self.func_params:
+                b = self.monotonic_constraints(b)
         else:
             b = None
         v = self.util_module(x, b)  # no softmax here
