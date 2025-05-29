@@ -75,13 +75,14 @@ def plot_alt_spec_features(
     dataset : str
         Dataset to use. Default is "SwissMetro".
     """
+    num_classes = 1 if dataset == "easySHARE" else 3
     # Load the models
     for model in all_models.keys():
         if model == "RUMBoost":
             model_path_fi = f"results/{dataset}/{model}/model_fiTrue_fpFalse.json"
             rumboost_fi = all_models[model]()
             rumboost_fi.load_model(model_path_fi)
-            rumboost_params_fi = rumboost_fi.model.boosters[:-1]
+            rumboost_params_fi = rumboost_fi.model.boosters[:-num_classes]
 
             model_path = f"results/{dataset}/{model}/model_fiFalse_fpFalse.json"
             rumboost = all_models[model]()
@@ -96,7 +97,6 @@ def plot_alt_spec_features(
                 tastenet_params = np.concatenate(
                     [tastenet_params, param.detach().cpu().numpy()[0]]
                 )
-            
 
             model_path_fi = f"results/{dataset}/{model}/model_fiTrue_fpFalse.pth"
             tastenet_fi = all_models[model]()
@@ -156,13 +156,14 @@ def plot_alt_spec_features(
         if len(alt_spec_features) == 9:
             k = 0 if i < 3 else 1 if i < 7 else 2
             l = 3 if i < 3 else 4 if i < 7 else 2
-            y_rumboost = rumboost_params[k].predict(dummy_array[:, k:k+l])
+            m = 0 if i < 3 else 3 if i < 7 else 7
+            y_rumboost = rumboost_params[k].predict(dummy_array[:, m : m + l])
         else:
             y_rumboost = rumboost_params[0].predict(dummy_array)
         y_tastenet = tastenet_params[i] * x / x.max()
 
         if len(alt_spec_features) == 9:
-            y_rumboost_fi = rumboost_params_fi[k].predict(dummy_array[:, k:k+l])
+            y_rumboost_fi = rumboost_params_fi[k].predict(dummy_array[:, m : m + l])
         else:
             y_rumboost_fi = rumboost_params_fi[0].predict(dummy_array)
         y_tastenet_fi = tastenet_params_fi[i] * x / x.max()
@@ -291,7 +292,7 @@ def plot_ind_spec_constant(
     df_train[socio_demo_chars] = scaler.fit_transform(df_train[socio_demo_chars])
     df[socio_demo_chars] = scaler.transform(df[socio_demo_chars])
 
-    num_classes = 13 if dataset == "easySHARE" else 3
+    num_classes = 1 if dataset == "easySHARE" else 3
 
     num_plots = (
         functional_params * len(alt_spec_features) + functional_intercept * num_classes
@@ -307,6 +308,7 @@ def plot_ind_spec_constant(
             rumboost = all_models[model]()
             rumboost.load_model(model_path)
             rumboost_predictor = rumboost.model.boosters[-num_plots:]
+
         elif model == "TasteNet":
             model_path = f"results/{dataset}/{model}/model_fi{functional_intercept}_fp{functional_params}.pth"
             tastenet = all_models[model]()
@@ -321,16 +323,47 @@ def plot_ind_spec_constant(
             y_tastenet = tastenet_predictor(sdc_tensor).detach().cpu().numpy().squeeze()
             if not functional_params:
                 y_tastenet = y_tastenet.reshape(-1, num_classes)
+            if dataset == "easySHARE" and functional_intercept:
+                first_threshold = (
+                    tastenet.model.ordinal_module.coral_bias[0].detach().cpu().numpy()
+                )
+                y_tastenet[:, -1] = y_tastenet[:, -1] + first_threshold
 
     colors = ["#264653", "#2a9d8f", "#0073a1", "#7cd2bf"]
 
     for j in range(num_plots):
         fig, axes = plt.subplots(1, 2, figsize=(8, 6), dpi=300)
+        if functional_intercept:
+            if j < num_plots - num_classes:
+                x_max = df[[alt_spec_features[j]]].max().values
+            else:
+                x_max = 1
+        else:
+            x_max = df[[alt_spec_features[j]]].max().values
         if "RUMBoost" in all_models:
-            y_rumboost = rumboost_predictor[j].predict(df[socio_demo_chars])
+            y_rumboost = rumboost_predictor[j].predict(df[socio_demo_chars]) / x_max
+            if dataset == "SwissMetro" and functional_intercept:
+                if j != 6 and j < num_plots - num_classes:
+                    y_rumboost = np.minimum(y_rumboost, 0)
+            elif dataset == "SwissMetro" and j != 6:
+                y_rumboost = np.minimum(y_rumboost, 0)
+
+            if (
+                dataset == "easySHARE"
+                and functional_intercept
+                and j >= num_plots - num_classes
+            ):
+                first_threshold = rumboost.model.thresholds[0].cpu().numpy()
+                y_rumboost = y_rumboost - first_threshold
             min_val = y_rumboost.min()
             max_val = y_rumboost.max()
         if "TasteNet" in all_models:
+            y_tastenet[:, j] = y_tastenet[:, j] / x_max
+            if dataset == "SwissMetro" and functional_intercept: 
+                if j != 6 and j < num_plots - num_classes:
+                    y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
+            elif dataset == "SwissMetro" and j != 6:
+                y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
             min_val = min(min_val, y_tastenet[:, j].min())
             max_val = max(max_val, y_tastenet[:, j].max())
 
@@ -395,14 +428,22 @@ def plot_ind_spec_constant(
         if save_fig:
             if not feature_to_highlight:
                 feature_to_highlight = ""
-            if functional_params and functional_intercept and j < num_plots - num_classes:
+            if (
+                functional_params
+                and functional_intercept
+                and j < num_plots - num_classes
+            ):
                 save_path = f"results/{dataset}/figures/ind_spec_const_{alt_spec_features[j]}_fi{functional_intercept}_fp{functional_params}_{feature_to_highlight}.png"
-            elif functional_params and functional_intercept and j >= num_plots - num_classes:
+            elif (
+                functional_params
+                and functional_intercept
+                and j >= num_plots - num_classes
+            ):
                 save_path = f"results/{dataset}/figures/ind_spec_const_intercept_{j - len(alt_spec_features)}_fiTrue_fp{functional_params}_{feature_to_highlight}.png"
             elif functional_params and not functional_intercept:
                 save_path = f"results/{dataset}/figures/ind_spec_const_{alt_spec_features[j]}_fi{functional_intercept}_fp{functional_params}_{feature_to_highlight}.png"
             else:
-                save_path = f"results/{dataset}/figures/ind_spec_const_intercept_{j}_fiFalse_fp{functional_params}_{feature_to_highlight}.png"
+                save_path = f"results/{dataset}/figures/ind_spec_const_intercept_{j}_fiTrue_fp{functional_params}_{feature_to_highlight}.png"
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
@@ -411,41 +452,43 @@ def plot_ind_spec_constant(
 
 if __name__ == "__main__":
 
-    dataset = "SwissMetro"
-    all_alt_spec_features = []
-    for k, v in alt_spec_features[dataset].items():
-        all_alt_spec_features.extend(v)
-    path_to_data = PATH_TO_DATA[dataset]
-    path_to_data_train = PATH_TO_DATA_TRAIN[dataset]
-    if dataset == "SwissMetro":
-        path_to_data = path_to_data_train
+    for dataset in ["SwissMetro"]:#"easySHARE"]:
+        all_alt_spec_features = []
+        for k, v in alt_spec_features[dataset].items():
+            all_alt_spec_features.extend(v)
+        path_to_data = PATH_TO_DATA[dataset]
+        path_to_data_train = PATH_TO_DATA_TRAIN[dataset]
+        if dataset == "SwissMetro":
+            path_to_data = path_to_data_train
 
-    plot_alt_spec_features(
-        all_alt_spec_features, path_to_data=path_to_data, save_fig=True, dataset=dataset
-    )
-    plot_ind_spec_constant(
-        all_alt_spec_features,
-        path_to_data=path_to_data,
-        path_to_data_train=path_to_data_train,
-        save_fig=True,
-        dataset=dataset,
-    )
-    plot_ind_spec_constant(
-        all_alt_spec_features,
-        path_to_data=path_to_data,
-        path_to_data_train=path_to_data_train,
-        save_fig=True,
-        functional_params=False,
-        functional_intercept=True,
-        dataset=dataset,
-    )
-    plot_ind_spec_constant(
-        all_alt_spec_features,
-        path_to_data=path_to_data,
-        path_to_data_train=path_to_data_train,
-        save_fig=True,
-        functional_params=True,
-        functional_intercept=False,
-        dataset=dataset,
-    )
-    # plot_ind_spec_constant(functional_params=False, feature_to_highlight="female")
+        plot_alt_spec_features(
+            all_alt_spec_features,
+            path_to_data=path_to_data,
+            save_fig=True,
+            dataset=dataset,
+        )
+        plot_ind_spec_constant(
+            all_alt_spec_features,
+            path_to_data=path_to_data,
+            path_to_data_train=path_to_data_train,
+            save_fig=True,
+            dataset=dataset,
+        )
+        plot_ind_spec_constant(
+            all_alt_spec_features,
+            path_to_data=path_to_data,
+            path_to_data_train=path_to_data_train,
+            save_fig=True,
+            functional_params=False,
+            functional_intercept=True,
+            dataset=dataset,
+        )
+        plot_ind_spec_constant(
+            all_alt_spec_features,
+            path_to_data=path_to_data,
+            path_to_data_train=path_to_data_train,
+            save_fig=True,
+            functional_params=True,
+            functional_intercept=False,
+            dataset=dataset,
+        )

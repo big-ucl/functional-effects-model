@@ -87,6 +87,9 @@ class TasteNet(nn.Module):
     def monotonic_constraints(self, b):
         """
         Put transformation for the sake of constraints on the value of times
+        This is only for the SwissMetro dataset and needs to be adapted for other datasets.
+        b: taste parameters (N, 1): Individual taste parameters.
+        
         """
         if self.func_intercept:
             return torch.cat(
@@ -99,7 +102,7 @@ class TasteNet(nn.Module):
                 dim=1,
             )
         else:
-            torch.cat(
+            return torch.cat(
                 [-F.relu(-b[:, :6]), b[:, 6].view(-1, 1), -F.relu(-b[:, 7:9])], dim=1
             )
 
@@ -213,7 +216,7 @@ class TasteParams(nn.Module):
             self.seq.add_module(
                 name=f"L{i+1}", module=nn.Linear(in_size, out_size, bias=True)
             )
-            if i < len(layer_sizes) - 2:
+            if i < len(all_layers) - 2:
                 self.seq.add_module(name=f"A{i+1}", module=get_act(args.act_func))
                 if args.dropout > 0:
                     self.seq.add_module(name=f"D{i+1}", module=nn.Dropout(args.dropout))

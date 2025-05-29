@@ -3,11 +3,11 @@
  & \multicolumn{2}{r}{} & \multicolumn{4}{r}{RUMBoost} & \multicolumn{4}{r}{TasteNet} \\
  & Search space & Distribution & Functional intercept and slopes & Functional slopes only & Functional intercept only & No functional effects & Functional intercept and slopes & Functional slopes only & Functional intercept only & No functional effects \\
 \midrule
-Validation MCEL & - & - & 0.253 & 0.253 & 0.253 & 0.261 & 0.253 & 0.253 & 0.254 & - \\
-Time [s] & - & - & 4512.0 & 5683.0 & 7752.0 & 23230.0 & 9501.0 & 7977.0 & 7969.0 & - \\
-Best iteration/epoch & Max 3000 iterations \slash 200 epochs & - & 385.000 & 517.000 & 867.000 & 1070.000 & 41.000 & 38.000 & 21.000 & - \\
-lambda_l1 & $[10^{-8}, 1]$ & Log-uniform & 0.521 & 0.000 & 0.000 & 0.000 & 0.001 & 0.001 & 0.000 & - \\
-lambda_l2 & $[10^{-8}, 1]$ & Log-uniform & 0.000 & 0.000 & 0.001 & 0.000 & 0.000 & 0.000 & 0.091 & - \\
+Validation MCEL & - & - & 0.253 & 0.253 & 0.253 & 0.261 & 0.253 & 0.253 & 0.254 & 0.262 \\
+Time [s] & - & - & 4512.0 & 5683.0 & 7752.0 & 23230.0 & 9683.0 & 13214.0 & 12194.0 & 8795.0 \\
+Best iteration/epoch & Max 3000 iterations \slash 200 epochs & - & 385.000 & 517.000 & 867.000 & 1070.000 & 25.000 & 29.000 & 20.000 & 30.000 \\
+lambda_l1 & $[10^{-8}, 1]$ & Log-uniform & 0.521 & 0.000 & 0.000 & 0 & 0.000 & 0.000 & 0.000 & 0 \\
+lambda_l2 & $[10^{-8}, 1]$ & Log-uniform & 0.000 & 0.000 & 0.001 & 0 & 0.000 & 0.000 & 0.036 & 0 \\
 num_leaves & $[2, 256]$ & Discrete uniform & 3.000 & 3.000 & 11.000 & 5.000 & - & - & - & - \\
 feature_fraction & $[0.4, 1]$ & Uniform & 0.788 & 0.708 & 0.492 & 0.979 & - & - & - & - \\
 bagging_fraction & $[0.4, 1]$ & Uniform & 0.998 & 0.998 & 0.879 & 0.921 & - & - & - & - \\
@@ -16,11 +16,11 @@ min_data_in_leaf & $[1, 200]$ & Discrete uniform & 159.000 & 173.000 & 194.000 &
 max_bin & $[64, 511]$ & Discrete uniform & 209.000 & 363.000 & 95.000 & 144.000 & - & - & - & - \\
 min_sum_hessian_in_leaf & $[10^{-8}, 10]$ & Log-uniform & 0.000 & 0.098 & 2.234 & 0.001 & - & - & - & - \\
 min_gain_to_split & $[10^{-8}, 10]$ & Log-uniform & 0.000 & 3.631 & 5.169 & 0.194 & - & - & - & - \\
-batch_size & \{256, 512\} & Categorical & - & - & - & - & 256 & 256 & 256 & - \\
-learning_rate & $[0.0001, 0.01]$ & Log-uniform & 0.050 & 0.050 & 0.050 & 0.050 & 0.000 & 0.001 & 0.004 & - \\
-dropout & $[0.0, 0.9]$ & Uniform & - & - & - & - & 0.201 & 0.784 & 0.685 & - \\
-act_func & \{ReLU, Sigmoid, Tanh\} & Categorical & - & - & - & - & tanh & sigmoid & sigmoid & - \\
-batch_norm & \{True, False\} & Categorical & - & - & - & - & True & True & True & - \\
-layer_sizes & \{[32], [64], [128], [32, 32], [64, 64], [128, 128], [64, 128], [128, 64], [64, 128, 64]\} & Categorical & - & - & - & - & 32, 32 & 64, 128, 64 & 64, 128, 64 & - \\
+batch_size & \{256, 512\} & Categorical & - & - & - & - & 256 & 256 & 256 & 256 \\
+learning_rate & $[0.0001, 0.01]$ & Log-uniform & 0.050 & 0.050 & 0.050 & 0.050 & 0.001 & 0.002 & 0.004 & 0.001 \\
+dropout & $[0.0, 0.9]$ & Uniform & - & - & - & 0 & 0.659 & 0.003 & 0.553 & 0 \\
+act_func & \{ReLU, Sigmoid, Tanh\} & Categorical & - & - & - & - & sigmoid & sigmoid & sigmoid & - \\
+batch_norm & \{True, False\} & Categorical & - & - & - & False & True & False & False & False \\
+layer_sizes & \{[32], [64], [128], [32, 32], [64, 64], [128, 128], [64, 128], [128, 64], [64, 128, 64]\} & Categorical & - & - & - & - & 128, 64 & 32, 32 & 32, 32 & - \\
 \bottomrule
 \end{tabular}

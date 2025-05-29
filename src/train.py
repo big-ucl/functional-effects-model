@@ -120,6 +120,8 @@ def train(args):
                         int(size)
                         for size in optimal_hyperparams["layer_sizes"].split(",")
                     ]
+                if "learning_rate" not in optimal_hyperparams:
+                    optimal_hyperparams["learning_rate"] = 1
                 args.__dict__.update(optimal_hyperparams)
         except FileNotFoundError:
             print(
@@ -190,11 +192,11 @@ def train(args):
         "emae_test": emae_test,
     }
 
-    # save the results
-    pd.DataFrame(results_dict, index=[0]).to_csv(
-        args.outpath
-        + f"results_dict_fi{args.functional_intercept}_fp{args.functional_params}.csv"
-    )
-
     if args.save_model:
+        # save the results
+        pd.DataFrame(results_dict, index=[0]).to_csv(
+            args.outpath
+            + f"results_dict_fi{args.functional_intercept}_fp{args.functional_params}.csv"
+        )
+
         model.save_model(save_path)

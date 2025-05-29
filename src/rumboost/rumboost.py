@@ -183,11 +183,25 @@ class RUMBoost:
             self.device = torch.device(self.device)
 
         if self.alphas is not None:  # numpy.ndarray so need to specify not None
-            self.alphas = np.array(self.alphas)
+            if self.device is not None:
+                self.alphas = torch.tensor(self.alphas, device=self.device)
+            else:
+                self.alphas = np.array(self.alphas)
         if self.mu is not None:  # numpy.ndarray so need to specify not None
-            self.mu = np.array(self.mu)
+            if self.device is not None:
+                self.mu = torch.tensor(self.mu, device=self.device)
+            else:
+                self.mu = np.array(self.mu)
         if self.thresholds is not None:  # numpy.ndarray so need to specify not None
-            self.thresholds = np.array(self.thresholds)
+            if self.device is not None:
+                self.thresholds = torch.tensor(self.thresholds, device=self.device)
+            else:
+                self.thresholds = np.array(self.thresholds)
+        if self.asc is not None:  # numpy.ndarray so need to specify not None
+            if self.device is not None:
+                self.asc = torch.tensor(self.asc, device=self.device)
+            else:
+                self.asc = np.array(self.asc)
 
         if isinstance(self.split_and_leaf_values, dict):
             self.split_and_leaf_values = {
