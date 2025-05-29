@@ -204,10 +204,16 @@ class RUMBoost:
                 self.asc = np.array(self.asc)
 
         if isinstance(self.split_and_leaf_values, dict):
-            self.split_and_leaf_values = {
-                k: {c: np.array(v[c]) for c in v.keys()}
-                for k, v in self.split_and_leaf_values.items()
-            }
+            if self.device is not None:
+                self.split_and_leaf_values = {
+                    k: {c: torch.tensor(v[c], device=self.device) for c in v.keys()}
+                    for k, v in self.split_and_leaf_values.items()
+                }
+            else:
+                self.split_and_leaf_values = {
+                    k: {c: np.array(v[c]) for c in v.keys()}
+                    for k, v in self.split_and_leaf_values.items()
+                }
 
     def multiply_grad_hess_by_data(func):
         """
