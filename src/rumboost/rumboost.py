@@ -182,23 +182,23 @@ class RUMBoost:
         if "device" in self.__dict__ and self.device is not None:
             self.device = torch.device(self.device)
 
-        if self.alphas is not None:  # numpy.ndarray so need to specify not None
-            if self.device is not None:
+        if isinstance(self.device, str):
+            self.device = torch.device(self.device)
+
+        if isinstance(self.alphas, list):  # numpy.ndarray so need to specify not None
+            if "device" in self.__dict__ and self.device is not None:
                 self.alphas = torch.tensor(self.alphas, device=self.device)
             else:
                 self.alphas = np.array(self.alphas)
-        if self.mu is not None:  # numpy.ndarray so need to specify not None
-            if self.device is not None:
+        if isinstance(self.mu, list):  # numpy.ndarray so need to specify not None
+            if "device" in self.__dict__ and self.device is not None:
                 self.mu = torch.tensor(self.mu, device=self.device)
             else:
                 self.mu = np.array(self.mu)
-        if self.thresholds is not None:  # numpy.ndarray so need to specify not None
-            if self.device is not None:
-                self.thresholds = torch.tensor(self.thresholds, device=self.device)
-            else:
-                self.thresholds = np.array(self.thresholds)
-        if self.asc is not None:  # numpy.ndarray so need to specify not None
-            if self.device is not None:
+        if isinstance(self.thresholds, list):  # numpy.ndarray so need to specify not None
+            self.thresholds = np.array(self.thresholds)
+        if isinstance(self.asc, list):  # numpy.ndarray so need to specify not None
+            if "device" in self.__dict__ and self.device is not None:
                 self.asc = torch.tensor(self.asc, device=self.device)
             else:
                 self.asc = np.array(self.asc)

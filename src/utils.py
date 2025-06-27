@@ -22,7 +22,7 @@ TrainTestSplit = Union[
 
 
 def generate_rum_structure(
-    alt_spec_features: Optional[List[str]] = None,
+    alt_spec_features: Optional[Dict[str, List[str]]] = None,
     socio_demo_chars: Optional[List[str]] = None,
     functional_intercept: Optional[bool] = False,
     functional_params: Optional[bool] = False,
@@ -61,6 +61,8 @@ def generate_rum_structure(
                 monotone_constraints = [-1, -1, -1, 0]
             elif "CAR_TT" in value:
                 monotone_constraints = [-1, -1]
+            elif "dur" in value:
+                monotone_constraints = [-1]
             else:
                 monotone_constraints = [0] * len(value)
             interaction_constraints = [list(range(len(value)))]
