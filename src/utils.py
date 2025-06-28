@@ -61,7 +61,7 @@ def generate_rum_structure(
                 monotone_constraints = [-1, -1, -1, 0]
             elif "CAR_TT" in value:
                 monotone_constraints = [-1, -1]
-            elif "dur" in value:
+            elif "dur" in value[0]:
                 monotone_constraints = [-1]
             else:
                 monotone_constraints = [0] * len(value)
