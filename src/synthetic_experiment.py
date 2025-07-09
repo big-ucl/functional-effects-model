@@ -6,11 +6,11 @@ import seaborn as sns
 import torch
 import time
 import os
+import argparse
 import gc
 import pickle
 import optuna
 
-from typing import List, Dict, Tuple
 from functools import partial
 from scipy.special import softmax
 from rumboost.metrics import cross_entropy
@@ -18,7 +18,6 @@ from rumboost.datasets import load_preprocess_LPMC
 
 from models_wrapper import RUMBoost, TasteNet
 from parser import parse_cmdline_args
-from utils import split_dataset
 
 np.random.seed(1)
 
@@ -52,7 +51,22 @@ all_models = {
 
 
 # Define the utility function
-def utility_function_LPMC(data, with_noise=False):
+def utility_function_LPMC(data: pd.DataFrame, with_noise: bool = False) -> np.ndarray:
+    """
+    Create the utility function for the LPMC dataset.
+
+    Parameters
+    ----------
+    data: pd.DataFrame
+        Data used for the synthetic experiment
+    with_noise: bool
+        Whether to add noise to the utility values
+
+    Returns
+    -------
+    V: np.ndarray
+        The utility values for each alternative.
+    """
     # Extract the parameters
     V = np.zeros((data.shape[0], n_alternatives))
 
@@ -76,16 +90,59 @@ def utility_function_LPMC(data, with_noise=False):
     return V
 
 
-def generate_noise(mean, sd, n):
+def generate_noise(mean: float, sd: float, n: tuple[int, ...]) -> np.ndarray:
+    """
+    Generate noise from a Gumbel distribution.
+
+    Parameters
+    ----------
+    mean: float
+        The mean of the Gumbel distribution.
+    sd: float
+        The standard deviation of the Gumbel distribution.
+    n: tuple
+        The shape of the noise to generate.
+
+    Returns
+    -------
+    noise: np.ndarray
+        The generated noise.
+    """
     return np.random.gumbel(loc=mean, scale=sd, size=n)
 
 
-def compute_prob(V):
+def compute_prob(V: np.ndarray) -> np.ndarray:
+    """ 
+    Compute the probabilities for each alternative using the softmax function.
+
+    Parameters
+    ----------
+    V: np.ndarray
+        The utility values for each alternative.
+
+    Returns
+    -------
+    probs: np.ndarray
+        The probabilities for each alternative.
+    """
 
     return softmax(V, axis=1)
 
 
-def generate_labels(probs):
+def generate_labels(probs: np.ndarray) -> np.ndarray:
+    """
+    Generate labels based on the probabilities.
+
+    Parameters
+    ----------
+    probs: np.ndarray
+        The probabilities for each alternative and each observation.
+
+    Returns
+    -------
+    labels: np.ndarray
+        The generated labels for each alternative and each observation.
+    """
     labels = [
         np.random.choice(range(n_alternatives), p=probs[i])
         for i in range(probs.shape[0])
@@ -95,7 +152,7 @@ def generate_labels(probs):
 
 def group_functional_intercepts(
     data_train: pd.DataFrame, data_test: pd.DataFrame
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Create the synthetic functional intercepts for the LPMC dataset.
     Parameters
@@ -167,9 +224,8 @@ def create_functional_intercept(data: pd.DataFrame, features_name: list) -> np.n
     functional_intercept = data_arr.prod(axis=1)
     return functional_intercept
 
-def add_simulated_choices(
-    data: pd.DataFrame, features_name: list, with_noise: bool = False
-) -> pd.DataFrame:
+
+def add_simulated_choices(data: pd.DataFrame, with_noise: bool = False) -> pd.DataFrame:
     """
     Add simulated choices to the data based on the utility function.
 
@@ -177,8 +233,6 @@ def add_simulated_choices(
     ----------
     data: pd.DataFrame
         Data used for the synthetic experiment
-    features_name: list
-        Features used in the utility function
     with_noise: bool
         Whether to add noise to the utility values
 
@@ -192,8 +246,10 @@ def add_simulated_choices(
     data["choice"] = generate_labels(probs)
     return data
 
+
 def gather_functional_intercepts(
-    data: pd.DataFrame, features_name: list, model
+    data: pd.DataFrame,
+    model: RUMBoost | TasteNet,
 ) -> np.ndarray:
     """
     Gather the learnt functional intercepts for the given model.
@@ -202,8 +258,8 @@ def gather_functional_intercepts(
     ----------
     data: pd.DataFrame
         Data used for the synthetic experiment
-    features_name: list
-        Features used in the functional intercept
+    model: RUMBoost or TasteNet
+        The model used for the synthetic experiment.
 
     Returns
     -------
@@ -229,7 +285,7 @@ def gather_functional_intercepts(
     return fct_intercept
 
 
-def l1_distance(true_fct_intercept, learnt_fct_intercept):
+def l1_distance(true_fct_intercept: np.ndarray, learnt_fct_intercept: np.ndarray) -> float:
     """
     Compute the L1 distance between the true and learnt functional intercepts.
 
@@ -248,7 +304,7 @@ def l1_distance(true_fct_intercept, learnt_fct_intercept):
     return np.sum(np.abs(true_fct_intercept - learnt_fct_intercept))
 
 
-def run_experiment(args):
+def run_experiment(args: argparse.Namespace) -> None:
     """
     Run the synthetic experiment with the given arguments.
 
@@ -275,15 +331,6 @@ def run_experiment(args):
         with_noise=False,
     )
 
-    # split dataset by household id
-    # X_train, y_train, X_val, y_val = split_dataset(
-    #     data_train,
-    #     "choice",
-    #     features,
-    #     train_size=0.8,
-    #     groups=data_train["household_id"],
-    #     random_state=1,
-    # )
     X_train, y_train = data_train[features], data_train["choice"]
     X_val, y_val = None, None
     X_test, y_test = data_test[features], data_test["choice"]
@@ -370,7 +417,8 @@ def run_experiment(args):
 
         model.save_model(save_path)
 
-def hyperparameter_search(model: str = "RUMBoost"):
+
+def hyperparameter_search(model: str = "RUMBoost") -> None:
     """
     Perform hyperparameter search for the models.
     This function is not implemented yet.
@@ -380,7 +428,8 @@ def hyperparameter_search(model: str = "RUMBoost"):
     model : str
         The model to train. Can be "RUMBoost" or "TasteNet".
     """
-    def objective(trial, model, func_int, func_params):
+
+    def objective(trial: optuna.Trial, model: str, func_int: bool, func_params: bool) -> float:
         """
         Optuna objective function for the hyperparameter search.
 
@@ -394,6 +443,11 @@ def hyperparameter_search(model: str = "RUMBoost"):
             Whether to use functional intercept.
         func_params : bool
             Whether to use functional parameters.
+
+        Returns
+        -------
+        float
+            The average validation loss over the folds.
         """
 
         # load the data
@@ -455,7 +509,9 @@ def hyperparameter_search(model: str = "RUMBoost"):
                 "functional_params": func_params,
                 "verbose": 0,
                 "batch_size": trial.suggest_int("batch_size", 256, 512, step=256),
-                "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True),
+                "learning_rate": trial.suggest_float(
+                    "learning_rate", 1e-4, 1e-2, log=True
+                ),
                 "patience": 10,
                 "dropout": trial.suggest_float("dropout", 0.0, 0.9),
                 "device": "cuda",
@@ -504,7 +560,6 @@ def hyperparameter_search(model: str = "RUMBoost"):
             X_train, y_train = X.iloc[train_idx].copy(), y.iloc[train_idx].copy()
             X_val, y_val = X.iloc[val_idx].copy(), y.iloc[val_idx].copy()
 
-
             # build the dataloader
             model.build_dataloader(X_train, y_train, X_val, y_val)
 
@@ -522,7 +577,7 @@ def hyperparameter_search(model: str = "RUMBoost"):
         torch.cuda.empty_cache()
 
         return avg_val_loss / k
-    
+
     func_int = True
     func_params = False
 
@@ -544,9 +599,7 @@ def hyperparameter_search(model: str = "RUMBoost"):
     best_trial = study.best_trial
     optimisation_time = end_time - start_time
 
-    best_params["best_iteration"] = best_trial.user_attrs[
-        "best_iteration"
-    ]
+    best_params["best_iteration"] = best_trial.user_attrs["best_iteration"]
 
     print(f"Best params: {best_params}")
     print(f"Best value: {best_value}")
@@ -574,7 +627,7 @@ def plot_ind_spec_constant(
     save_fig: bool = True,
     functional_params: bool = False,
     functional_intercept: bool = True,
-):
+) -> None:
     """
     Plot the individual-specific constant for the models.
     The model needs to be trained with functional parameters or functional intercept.
@@ -741,24 +794,18 @@ def plot_ind_spec_constant(
 
 
 def plot_alt_spec_features(
-    alt_spec_features: List = alt_spec_features,
+    alt_spec_features_list: list[str],
     save_fig: bool = True,
-):
+) -> None:
     """
     Plot the alternative-specific features for the models, if trained without functional parameters.
 
     Parameters
     ----------
-    alt_spec_features : List
+    alt_spec_features_list : list[str]
         List of alternative-specific features. They must be in the same order as for the training.
-    all_models : Dict
-        Dictionary of all models.
-    path_to_data : str
-        Path to the data folder.
     save_fig : bool
         Whether to save the figure or not.
-    dataset : str
-        Dataset to use. Default is "SwissMetro".
     """
     num_classes = n_alternatives
     # Load the models
@@ -814,10 +861,10 @@ def plot_alt_spec_features(
 
     colors = ["#264653", "#2a9d8f", "#0073a1", "#7cd2bf"]
 
-    for i, as_feat in enumerate(alt_spec_features):
+    for i, as_feat in enumerate(alt_spec_features_list):
 
         x = np.linspace(0, 3, 10000)
-        dummy_array = np.zeros((10000, len(alt_spec_features)))
+        dummy_array = np.zeros((10000, len(alt_spec_features_list)))
         dummy_array[:, i] = x
         y_rumboost = rumboost_params_fi[i].predict(dummy_array[:, i].reshape(-1, 1))
         y_tastenet = tastenet_params_fi[i] * x
