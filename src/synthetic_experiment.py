@@ -250,6 +250,8 @@ def add_simulated_choices(data: pd.DataFrame, with_noise: bool = False) -> pd.Da
 def gather_functional_intercepts(
     data: pd.DataFrame,
     model: RUMBoost | TasteNet,
+    socio_demo_characts: list[str] = socio_demo_chars,
+    n_classes: int = n_alternatives,
 ) -> np.ndarray:
     """
     Gather the learnt functional intercepts for the given model.
@@ -260,6 +262,10 @@ def gather_functional_intercepts(
         Data used for the synthetic experiment
     model: RUMBoost or TasteNet
         The model used for the synthetic experiment.
+    socio_demo_characts: list[str], optional (default: socio_demo_chars)
+        The socio-demographic characteristics used for the functional intercepts.
+    n_classes: int, optional (default: n_alternatives)
+        The number of alternatives (classes) in the model.
 
     Returns
     -------
@@ -267,16 +273,15 @@ def gather_functional_intercepts(
         The functional intercepts for the given features.
     """
     if isinstance(model, RUMBoost):
-        rumboost_predictor = model.model.boosters[-n_alternatives:]
-        fct_intercept = np.zeros((data.shape[0], n_alternatives))
+        rumboost_predictor = model.model.boosters[-n_classes:]
+        fct_intercept = np.zeros((data.shape[0], n_classes))
         for i, predictor in enumerate(rumboost_predictor):
-            fct_intercept[:, i] = predictor.predict(data[socio_demo_chars])
-
+            fct_intercept[:, i] = predictor.predict(data[socio_demo_characts], raw_score=True)
     else:
         tastenet_predictor = model.model.params_module
         # already computing the functional values as they are outputted all at once
         sdc_tensor = (
-            torch.from_numpy(data[socio_demo_chars].values)
+            torch.from_numpy(data[socio_demo_characts].values)
             .to(torch.device("cuda"))
             .to(torch.float32)
         )

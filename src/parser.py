@@ -69,12 +69,13 @@ def parse_cmdline_args(raw_args=None, parser=None):
         default=20,
         help="Minimum number of data in leaf",
     )
-    parser.add_argument(
-        "--feature_fraction",
-        type=float,
-        default=1.,
-        help="Feature fraction for the model",
-    )
+    # parser.add_argument(
+    #     "-ff",
+    #     "--feature_fraction",
+    #     type=float,
+    #     default=1.,
+    #     help="Feature fraction for the model",
+    # )
     parser.add_argument(
         "--bagging_fraction",
         type=float,
@@ -226,20 +227,22 @@ def parse_cmdline_args(raw_args=None, parser=None):
         help="Use optimal hyperparameters for the model",
         choices=["true", "false"],
     )
-    parser.add_argument(
-        "--functional_intercept",
-        type=str,
-        default="true",
-        help="Use functional intercept for the model",
-        choices=["true", "false"],
-    )
-    parser.add_argument(
-        "--functional_params",
-        type=str,
-        default="true",
-        help="Use functional parameter for the model",
-        choices=["true", "false"],
-    )
+    # parser.add_argument(
+    #     "-fi",
+    #     "--functional_intercept",
+    #     type=str,
+    #     default="true",
+    #     help="Use functional intercept for the model",
+    #     choices=["true", "false"],
+    # )
+    # parser.add_argument(
+    #     "-fp",
+    #     "--functional_params",
+    #     type=str,
+    #     default="true",
+    #     help="Use functional parameter for the model",
+    #     choices=["true", "false"],
+    # )
     parser.add_argument(
         "--num_latent_vals",
         type=int,
@@ -253,6 +256,12 @@ def parse_cmdline_args(raw_args=None, parser=None):
         help="Dataset to use for training",
         choices=["easySHARE", "SwissMetro"]
     )
+    parser.add_argument(
+        "-f",
+        "--fff",
+        type=str,
+        default = "A dummy value to fool iPython",
+    )
 
 
     parser.set_defaults(feature=True)
@@ -264,7 +273,7 @@ def parse_cmdline_args(raw_args=None, parser=None):
     args.save_model = d[args.save_model]  
     args.batch_norm = d[args.batch_norm]
     args.optimal_hyperparams = d[args.optimal_hyperparams]
-    args.functional_intercept = d[args.functional_intercept]
-    args.functional_params = d[args.functional_params]
+    # args.functional_intercept = d[args.functional_intercept]
+    # args.functional_params = d[args.functional_params]
 
     return args

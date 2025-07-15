@@ -71,6 +71,7 @@ class RUMBoost:
                 early_stopping_rounds=kwargs.get("args").early_stopping_rounds,
                 verbose=kwargs.get("args").verbose,
                 verbose_interval=kwargs.get("args").verbose_interval,
+                objective = "regression" if kwargs.get("num_classes") == 1 else "multiclass",
             )
 
             if kwargs.get("args").functional_params:
@@ -112,6 +113,7 @@ class RUMBoost:
                     "bagging_freq": kwargs.get("args").bagging_freq,
                     "lambda_l1": kwargs.get("args").lambda_l1,
                     "lambda_l2": kwargs.get("args").lambda_l2,
+                    "objective": "regression" if kwargs.get("num_classes") == 1 else "binary",
                 }
                 self.rum_structure[-num_boosters:] = add_hyperparameters(
                     self.rum_structure[-num_boosters:], hyperparameters
@@ -290,6 +292,8 @@ class TasteNet:
             self.criterion = (
                 torch.nn.BCEWithLogitsLoss()
                 if kwargs.get("args").dataset == "easySHARE"
+                else torch.nn.MSELoss()
+                if self.num_classes == 1
                 else torch.nn.CrossEntropyLoss()
             )
             self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(

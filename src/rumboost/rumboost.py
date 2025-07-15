@@ -1497,11 +1497,16 @@ class RUMBoost:
             for valid_set in reduced_valid_set:
                 valid_set.construct()
                 self.num_obs.append(valid_set.num_data())
+                val_labs = valid_set.get_label()
+                if self.num_classes > 1 or self.thresholds is not None:
+                    val_labs = val_labs.astype(np.int32)
                 self.valid_labels.append(
-                    valid_set.get_label().astype(np.int32)
+                    val_labs
                 )  # saving labels
 
-        self.labels = data.get_label().astype(np.int32)  # saving labels
+        self.labels = data.get_label()  # saving labels
+        if self.num_classes > 1 or self.thresholds is not None:
+            self.labels = self.labels.astype(np.int32)
         self.labels_j = (
             self.labels[:, None] == np.array(range(self.num_classes))[None, :]
         ).astype(np.int8)
@@ -3189,15 +3194,22 @@ def rum_train(
 
     # convert a few numpy arrays to torch tensors if needed
     if torch_tensors:
-        rumb.labels = torch.from_numpy(rumb.labels).type(torch.int16).to(rumb.device)
+        if rumb.num_classes == 1 and rumb.thresholds is None:
+            rumb.labels = torch.from_numpy(rumb.labels).type(torch.double).to(rumb.device)
+        else:
+            rumb.labels = torch.from_numpy(rumb.labels).type(torch.int16).to(rumb.device)
         rumb.asc = torch.from_numpy(rumb.asc).type(torch.double).to(rumb.device)
         if rumb.labels_j is not None:
             rumb.labels_j = (
                 torch.from_numpy(rumb.labels_j).type(torch.int8).to(rumb.device)
             )
         if rumb.valid_labels:
+            if rumb.num_classes == 1 and rumb.thresholds is None:
+                dtype = torch.double
+            else:
+                dtype = torch.int16
             rumb.valid_labels = [
-                torch.from_numpy(valid_labs).type(torch.int16).to(rumb.device)
+                torch.from_numpy(valid_labs).type(dtype).to(rumb.device)
                 for valid_labs in rumb.valid_labels
             ]
         if rumb.mu is not None:
