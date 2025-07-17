@@ -493,8 +493,8 @@ class RUMBoost:
 
             return grad.reshape(-1, order="F"), hess.reshape(-1, order="F")
 
-        preds = self._preds
-        targets = self.labels[self.subsample_idx]
+        preds = self._preds.reshape(-1)
+        targets = self.labels[self.subsample_idx].reshape(-1)
         grad = 2 * (preds - targets)
         hess = 2 * np.ones_like(preds)
 
