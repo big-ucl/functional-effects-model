@@ -327,12 +327,10 @@ def run_experiment(args: argparse.Namespace) -> None:
     # create synthetic utility values and choices
     data_train = add_simulated_choices(
         data_train,
-        features_name=features,
         with_noise=False,
     )
     data_test = add_simulated_choices(
         data_test,
-        features_name=features,
         with_noise=False,
     )
 
@@ -385,10 +383,10 @@ def run_experiment(args: argparse.Namespace) -> None:
 
     # get learnt functional intercepts
     learnt_fct_intercepts = gather_functional_intercepts(
-        data_train, socio_demo_chars, model
+        data_train, model, socio_demo_chars, n_alternatives
     )
     learnt_fct_intercepts_test = gather_functional_intercepts(
-        data_test, socio_demo_chars, model
+        data_test, model, socio_demo_chars, n_alternatives
     )
 
     # compute L1 distance between true and learnt functional intercepts
@@ -902,7 +900,7 @@ if __name__ == "__main__":
 
     for model in all_models.keys():
         # run hyperparameter search
-        hyperparameter_search(model=model)
+        # hyperparameter_search(model=model)
 
         # load the optimal hyperparameters for the model
         args = parse_cmdline_args()
@@ -930,6 +928,18 @@ if __name__ == "__main__":
         args.save_model = True
         args.model = model
         args.dataset = "synthetic"
+        if model == "RUMBoost":
+            args.device = "cpu"
+            args.num_iterations = int(args.best_iteration)
+            args.num_iterations = 1000
+        else:
+            args.device = "cuda"
+            args.num_epochs = int(args.best_iteration)
+        args.early_stopping_rounds = None
+        print(args.lambda_l1)
+        print(args.learning_rate)
+        print(args.num_leaves)
+        print(args.act_func)
         run_experiment(args)
 
     plot_ind_spec_constant()
