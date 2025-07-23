@@ -113,7 +113,7 @@ class RUMBoost:
                     "bagging_freq": kwargs.get("args").bagging_freq,
                     "lambda_l1": kwargs.get("args").lambda_l1,
                     "lambda_l2": kwargs.get("args").lambda_l2,
-                    "objective": "regression" if kwargs.get("num_classes") == 1 else "binary",
+                    # "objective": "regression" if kwargs.get("num_classes") == 1 else "binary",
                 }
                 self.rum_structure[-num_boosters:] = add_hyperparameters(
                     self.rum_structure[-num_boosters:], hyperparameters
