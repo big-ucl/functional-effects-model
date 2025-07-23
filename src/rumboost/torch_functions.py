@@ -1209,7 +1209,7 @@ def cross_entropy_torch(preds, labels):
                     torch.arange(
                         labels.shape[0], device=labels.device, dtype=torch.int32
                     ),
-                    labels.int(),
+                    labels,
                 ]
             )
         )
@@ -1328,7 +1328,7 @@ def mse_torch(preds, target):
         raise ImportError(
             "Pytorch is not installed. Please install it to run rumboost on torch tensors."
         )
-    return torch.mean((preds - target) ** 2).cpu().numpy()
+    return torch.mean((preds.view(-1) - target.view(-1)) ** 2).cpu().numpy()
 
 
 @compile_decorator
@@ -1352,7 +1352,7 @@ def mse_torch_compiled(preds, target):
         raise ImportError(
             "Pytorch is not installed. Please install it to run rumboost on torch tensors."
         )
-    return torch.mean((preds - target) ** 2).cpu().numpy()
+    return torch.mean((preds.view(-1) - target) ** 2).cpu().numpy()
 
 
 def coral_eval_torch(

@@ -3029,7 +3029,7 @@ def rum_train(
         raise ValueError(
             f"The maximum number of boosters to update must be at least equal to the number of classes ({rumb.num_classes})"
         )
-    min_utility = min([len(u_idx) for u_idx in rumb.utility_functions.values()])
+    min_utility = min([len(u_idx) for u_idx in rumb.utility_functions.values() if len(u_idx) != 0])
     if rumb.max_booster_to_update > rumb.num_classes * min_utility:
         raise ValueError(
             f"The maximum number of boosters to update must be at most equal to the number of classes ({rumb.num_classes}) times the maximum number of boosters in the smallest utility function ({min_utility})"
@@ -3197,7 +3197,7 @@ def rum_train(
         if rumb.num_classes == 1 and rumb.thresholds is None:
             rumb.labels = torch.from_numpy(rumb.labels).type(torch.double).to(rumb.device)
         else:
-            rumb.labels = torch.from_numpy(rumb.labels).type(torch.int16).to(rumb.device)
+            rumb.labels = torch.from_numpy(rumb.labels).type(torch.int32).to(rumb.device)
         rumb.asc = torch.from_numpy(rumb.asc).type(torch.double).to(rumb.device)
         if rumb.labels_j is not None:
             rumb.labels_j = (
@@ -3207,7 +3207,7 @@ def rum_train(
             if rumb.num_classes == 1 and rumb.thresholds is None:
                 dtype = torch.double
             else:
-                dtype = torch.int16
+                dtype = torch.int32
             rumb.valid_labels = [
                 torch.from_numpy(valid_labs).type(dtype).to(rumb.device)
                 for valid_labs in rumb.valid_labels
