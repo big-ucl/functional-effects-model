@@ -306,7 +306,7 @@ def l1_distance(true_fct_intercept: np.ndarray, learnt_fct_intercept: np.ndarray
     l1_distance: float
         The L1 distance between the true and learnt functional intercepts.
     """
-    return np.sum(np.abs(true_fct_intercept - learnt_fct_intercept))
+    return np.sum(np.abs(true_fct_intercept - learnt_fct_intercept), axis=0)
 
 
 def run_experiment(args: argparse.Namespace) -> None:
