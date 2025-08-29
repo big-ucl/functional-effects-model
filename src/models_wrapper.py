@@ -185,7 +185,7 @@ class RUMBoost:
 
         return self.model.best_score_train, self.model.best_score
 
-    def predict(self, X_test: pd.DataFrame) -> np.array:
+    def predict(self, X_test: pd.DataFrame, utilities: bool = False) -> np.array:
         """ "
         Predicts the target variable for the test set."
 
@@ -193,6 +193,9 @@ class RUMBoost:
         ----------
         X_test : pd.DataFrame
             Test set.
+        utilities : bool
+            Whether to predict utilities or probabilities.
+            If True, returns raw utility values.
 
         Returns
         -------
@@ -208,7 +211,7 @@ class RUMBoost:
         ), "Model not trained yet. Please train the model before predicting."
         # build lgb dataset
         lgb_test = lgb.Dataset(X_test, free_raw_data=False)
-        preds = self.model.predict(lgb_test)
+        preds = self.model.predict(lgb_test, utilities=utilities)
         if self.torch_tensors:
             preds = preds.cpu().numpy()
         binary_preds = -np.cumsum(preds, axis=1)[:, :-1] + 1
