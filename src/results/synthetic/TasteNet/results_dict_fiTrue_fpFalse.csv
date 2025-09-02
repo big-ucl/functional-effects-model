@@ -1,2 +1,2 @@
-,train_loss,val_loss,loss_test,l1_distance_train,l1_distance_test,train_time
-0,10000000000.0,10000000000.0,1.2953508,59315.31485182868,28362.09222975742,101.10433721542358
+,train_loss,val_loss,loss_test,train_time,L1_distance_train_class_0,L1_distance_test_class_0,L1_distance_train_class_1,L1_distance_test_class_1,L1_distance_train_class_2,L1_distance_test_class_2,L1_distance_train_class_3,L1_distance_test_class_3
+0,10000000000.0,10000000000.0,1.3456984,12.183888673782349,1408.934694723056,323.8491204731613,5422.489155690917,1174.8219296583502,5043.854276175646,1530.742009005271,0.0,0.0

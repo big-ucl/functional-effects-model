@@ -11,6 +11,7 @@ from models_wrapper import RUMBoost, TasteNet
 from constants import alt_spec_features, PATH_TO_DATA, PATH_TO_DATA_TRAIN
 from utils import pkl_to_df
 from typing import List, Dict
+from rumboost.datasets import load_preprocess_LPMC
 
 
 all_models = {
@@ -49,6 +50,22 @@ feature_names = {
     "TRAIN_CO": "Train cost",
     "CAR_TT": "Car travel time",
     "CAR_CO": "Car cost",
+    "dur_walking": "Walking travel time",
+    "distance": "Distance",
+    "day_of_week": "Day of the week",
+    "start_time_linear": "Trip start time",
+    "dur_cycling": "Cycling travel time",
+    "dur_pt_access": "Public transport access time",
+    "dur_pt_rail": "Public transport rail time",
+    "dur_pt_bus": "Public transport bus time",
+    "dur_pt_int_waiting": "Public transport interchanging waiting time",
+    "dur_pt_int_walking": "Public transport interchanging walking time",
+    "pt_n_interchanges": "Number of public transport interchanges",
+    "cost_transit": "Public transport cost",
+    "dur_driving": "Driving travel time",
+    "cost_driving_fuel": "Driving fuel cost",
+    "congestion_charge": "Congestion charge",
+    "driving_traffic_percent": "Road congestion percentage",
 }
 
 
@@ -75,7 +92,7 @@ def plot_alt_spec_features(
     dataset : str
         Dataset to use. Default is "SwissMetro".
     """
-    num_classes = 1 if dataset == "easySHARE" else 3
+    num_classes = 1 if dataset == "easySHARE" else 3 if dataset == "SwissMetro" else 4
     # Load the models
     for model in all_models.keys():
         if model == "RUMBoost":
@@ -142,6 +159,8 @@ def plot_alt_spec_features(
     )
     if dataset == "SwissMetro":
         df = pkl_to_df(path_to_data)
+    elif dataset == "LPMC":
+        df, _, _ = load_preprocess_LPMC(path_to_data)
     else:
         df = pd.read_csv(path_to_data)
 
@@ -158,11 +177,18 @@ def plot_alt_spec_features(
             l = 3 if i < 3 else 4 if i < 7 else 2
             m = 0 if i < 3 else 3 if i < 7 else 7
             y_rumboost = rumboost_params[k].predict(dummy_array[:, m : m + l])
+        elif len(alt_spec_features) == 25:
+            k = 0 if i < 4 else 1 if i < 8 else 2 if i < 18 else 3
+            l = 4 if i < 4 else 4 if i < 8 else 10 if i < 18 else 7
+            m = 0 if i < 4 else 4 if i < 8 else 8 if i < 18 else 18
+            y_rumboost = rumboost_params[k].predict(dummy_array[:, m : m + l])
         else:
             y_rumboost = rumboost_params[0].predict(dummy_array)
         y_tastenet = tastenet_params[i] * x / x.max()
 
         if len(alt_spec_features) == 9:
+            y_rumboost_fi = rumboost_params_fi[k].predict(dummy_array[:, m : m + l])
+        elif len(alt_spec_features) == 25:
             y_rumboost_fi = rumboost_params_fi[k].predict(dummy_array[:, m : m + l])
         else:
             y_rumboost_fi = rumboost_params_fi[0].predict(dummy_array)
@@ -276,6 +302,14 @@ def plot_ind_spec_constant(
             col
             for col in df.columns
             if col not in alt_spec_features and col not in ["CHOICE"]
+        ]
+    elif dataset == "LPMC":
+        df, _, _ = load_preprocess_LPMC(path_to_data)
+        df_train = df
+        socio_demo_chars = [
+            col
+            for col in df.columns
+            if col not in alt_spec_features and col not in ["choice"]
         ]
     else:
         df = pd.read_csv(path_to_data)
@@ -452,14 +486,14 @@ def plot_ind_spec_constant(
 
 if __name__ == "__main__":
 
-    for dataset in ["SwissMetro"]:#"easySHARE"]:
+    for dataset in ["LPMC"]:#, "SwissMetro"]:#"easySHARE"]:
         all_alt_spec_features = []
         for k, v in alt_spec_features[dataset].items():
             all_alt_spec_features.extend(v)
         path_to_data = PATH_TO_DATA[dataset]
         path_to_data_train = PATH_TO_DATA_TRAIN[dataset]
-        if dataset == "SwissMetro":
-            path_to_data = path_to_data_train
+        if dataset in ["SwissMetro", "LPMC"]:
+            path_to_data_train = path_to_data
 
         plot_alt_spec_features(
             all_alt_spec_features,

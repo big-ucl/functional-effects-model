@@ -227,22 +227,22 @@ def parse_cmdline_args(raw_args=None, parser=None):
         help="Use optimal hyperparameters for the model",
         choices=["true", "false"],
     )
-    # parser.add_argument(
-    #     "-fi",
-    #     "--functional_intercept",
-    #     type=str,
-    #     default="true",
-    #     help="Use functional intercept for the model",
-    #     choices=["true", "false"],
-    # )
-    # parser.add_argument(
-    #     "-fp",
-    #     "--functional_params",
-    #     type=str,
-    #     default="true",
-    #     help="Use functional parameter for the model",
-    #     choices=["true", "false"],
-    # )
+    parser.add_argument(
+        "-fi",
+        "--functional_intercept",
+        type=str,
+        default="true",
+        help="Use functional intercept for the model",
+        choices=["true", "false"],
+    )
+    parser.add_argument(
+        "-fp",
+        "--functional_params",
+        type=str,
+        default="true",
+        help="Use functional parameter for the model",
+        choices=["true", "false"],
+    )
     parser.add_argument(
         "--num_latent_vals",
         type=int,
@@ -254,7 +254,7 @@ def parse_cmdline_args(raw_args=None, parser=None):
         type=str,
         default="easySHARE",
         help="Dataset to use for training",
-        choices=["easySHARE", "SwissMetro"]
+        choices=["easySHARE", "SwissMetro", "LPMC"]
     )
     parser.add_argument(
         "-f",
@@ -273,7 +273,7 @@ def parse_cmdline_args(raw_args=None, parser=None):
     args.save_model = d[args.save_model]  
     args.batch_norm = d[args.batch_norm]
     args.optimal_hyperparams = d[args.optimal_hyperparams]
-    # args.functional_intercept = d[args.functional_intercept]
-    # args.functional_params = d[args.functional_params]
+    args.functional_intercept = d[args.functional_intercept]
+    args.functional_params = d[args.functional_params]
 
     return args

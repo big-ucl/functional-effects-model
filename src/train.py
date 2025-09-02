@@ -15,6 +15,7 @@ from constants import (
     alt_spec_features,
 )
 from models_wrapper import RUMBoost, TasteNet
+from rumboost.datasets import load_preprocess_LPMC
 
 
 def train(args):
@@ -53,6 +54,7 @@ def train(args):
             for col in columns
             if col not in all_alt_spec_features and col not in ["CHOICE"]
         ]
+        num_classes = 3
     elif args.dataset == "easySHARE":
         if args.optimal_hyperparams:
             data_train = pd.read_csv(PATH_TO_DATA_TRAIN[args.dataset])
@@ -74,6 +76,26 @@ def train(args):
             if col not in all_alt_spec_features
             and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
         ]
+        num_classes = 13
+    elif args.dataset == "LPMC":
+        data_train, data_test, folds = load_preprocess_LPMC(PATH_TO_DATA[args.dataset])
+
+        if not args.optimal_hyperparams:
+            for i, (train_idx, val_idx) in enumerate(folds):
+                if i > 1:
+                    continue
+                data_val = data_train.iloc[val_idx]
+                data_train = data_train.iloc[train_idx]
+
+        features = [col for col in data_train.columns if col not in ["choice"]]
+        target = "choice"
+
+        socio_demo_chars = [
+            col
+            for col in data_train.columns
+            if col not in all_alt_spec_features and col not in ["choice"]
+        ]
+        num_classes = 4
 
     # split data
     if args.optimal_hyperparams:
@@ -128,8 +150,6 @@ def train(args):
                 f"Optimal hyperparameters not found for {args.model}. Using default hyperparameters."
             )
             optimal_hyperparams = None
-
-    num_classes = 13 if args.dataset == "easySHARE" else 3
 
     if args.model == "RUMBoost":
         if args.optimal_hyperparams and optimal_hyperparams:

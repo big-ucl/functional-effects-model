@@ -304,7 +304,6 @@ class TasteNet:
                 mode="min",
                 factor=0.5,
                 patience=self.patience / 2,
-                verbose=True,
             )
             self.device = torch.device(kwargs.get("args").device)
             self.model.to(self.device)
@@ -469,14 +468,16 @@ class TasteNet:
         self.model = torch.load(path, weights_only=False)
         self.model.eval()
 
-    def predict(self, X_test: pd.DataFrame) -> np.array:
-        """ "
-        Predicts the target variable for the test set."
+    def predict(self, X_test: pd.DataFrame, utilities: bool = False) -> np.array:
+        """
+        Predicts the target variable for the test set.
 
         Parameters
         ----------
         X_test : pd.DataFrame
             Test set.
+        utilities : bool
+            Whether to predict utilities or not.
 
         Returns
         -------
@@ -499,6 +500,8 @@ class TasteNet:
             .to(self.device)
         )
         logits = self.model(x, z)
+        if utilities:
+            return logits.detach().cpu().numpy(), None, None
         if self.dataset == "easySHARE":
             binary_preds = torch.sigmoid(logits)
             label_pred = torch.sum(binary_preds > 0.5, axis=1)

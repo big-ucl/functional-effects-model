@@ -57,14 +57,31 @@ def generate_rum_structure(
             # monotone constraints for SwissMetro dataset
             if "TRAIN_TT" in value:
                 monotone_constraints = [-1, -1, -1]
+                md = 1
             elif "SM_TT" in value:
                 monotone_constraints = [-1, -1, -1, 0]
+                md = 1
             elif "CAR_TT" in value:
                 monotone_constraints = [-1, -1]
-            elif len(value) > 0 and "dur" in value[0]:
+                md = 1
+            elif "dur_walking" in value:
+                monotone_constraints = [-1, -1, 0, 0]
+                md = 1
+            elif "dur_cycling" in value:
+                monotone_constraints = [-1, -1, 0, 0]
+                md = 1
+            elif "dur_pt_access" in value:
+                monotone_constraints = [-1, -1, -1, -1, -1, -1, -1, -1, 0, 0]
+                md = 1
+            elif "dur_driving" in value:
+                monotone_constraints = [-1, -1, -1, -1, -1, 0, 0]
+                md = 1
+            elif value in [["f4"], ["f5"], ["f6"], ["f7"]]:
                 monotone_constraints = [-1]
+                md = -1
             else:
                 monotone_constraints = [0] * len(value)
+                md = 1
             interaction_constraints = [list(range(len(value)))]
             rum_structure_as = [
                 {
@@ -72,7 +89,7 @@ def generate_rum_structure(
                     "utility": [key],
                     "boosting_params": {
                         "monotone_constraints_method": "advanced",
-                        "max_depth": 1,
+                        "max_depth": md,
                         "n_jobs": -1,
                         "learning_rate": 0.1,
                         "verbose": -1,
@@ -93,6 +110,14 @@ def generate_rum_structure(
                 monotone_constraints = [-1, -1, -1, 0]
             elif "CAR_TT" in value:
                 monotone_constraints = [-1, -1]
+            elif "dur_walking" in value:
+                monotone_constraints = [-1, -1, 0, 0]
+            elif "dur_cycling" in value:
+                monotone_constraints = [-1, -1, 0, 0]
+            elif "dur_pt_access" in value:
+                monotone_constraints = [-1, -1, -1, -1, -1, -1, -1, -1, 0, 0]
+            elif "dur_driving" in value:
+                monotone_constraints = [-1, -1, -1, -1, 0, 0, -1]
             else:
                 monotone_constraints = [0] * len(value)
             rum_structure_params = [

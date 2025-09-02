@@ -73,6 +73,8 @@ class TasteNet(nn.Module):
             b = self.params_module(z)  # taste parameters, (N,1)
             if self.num_classes == 3 and self.func_params:
                 b = self.monotonic_constraints(b)
+            elif self.num_classes == 4 and self.func_params:
+                b = self.lpmc_monotonic_constraints(b)
         else:
             b = None
         v = self.util_module(x, b)  # no softmax here
@@ -89,7 +91,7 @@ class TasteNet(nn.Module):
         Put transformation for the sake of constraints on the value of times
         This is only for the SwissMetro dataset and needs to be adapted for other datasets.
         b: taste parameters (N, 1): Individual taste parameters.
-        
+
         """
         if self.func_intercept:
             return torch.cat(
@@ -104,6 +106,43 @@ class TasteNet(nn.Module):
         else:
             return torch.cat(
                 [-F.relu(-b[:, :6]), b[:, 6].view(-1, 1), -F.relu(-b[:, 7:9])], dim=1
+            )
+
+    def lpmc_monotonic_constraints(self, b):
+        """
+        Put transformation for the sake of constraints on the value of times
+        This is only for the LPMC dataset and needs to be adapted for other datasets.
+        b: taste parameters (N, 1): Individual taste parameters.
+
+        """
+        if self.func_intercept:
+            return torch.cat(
+                [
+                    -F.relu(-b[:, :2]),
+                    b[:, 2:4].view(-1, 2),
+                    -F.relu(-b[:, 4:6]),
+                    b[:, 6:8].view(-1, 2),
+                    -F.relu(-b[:, 8:16]),
+                    b[:, 16:18].view(-1, 2),
+                    -F.relu(-b[:, 18:23]),
+                    b[:, 23:25].view(-1, 2),
+                    b[:, -self.num_classes :].view(-1, self.num_classes),
+                ],
+                dim=1,
+            )
+        else:
+            return torch.cat(
+                [
+                    -F.relu(-b[:, :2]),
+                    b[:, 2:4].view(-1, 2),
+                    -F.relu(-b[:, 4:6]),
+                    b[:, 6:8].view(-1, 2),
+                    -F.relu(-b[:, 8:16]),
+                    b[:, 16:18].view(-1, 2),
+                    -F.relu(-b[:, 18:23]),
+                    b[:, 23:25].view(-1, 2),
+                ],
+                dim=1,
             )
 
     def l2_norm(self):

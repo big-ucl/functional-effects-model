@@ -14,46 +14,48 @@ import optuna
 from functools import partial
 from scipy.special import softmax
 from rumboost.metrics import cross_entropy
-from rumboost.datasets import load_preprocess_LPMC
 
 from models_wrapper import RUMBoost, TasteNet
 from parser import parse_cmdline_args
 
-np.random.seed(1)
+np.random.seed(0)
 
 n_alternatives = 4
+num_observations = 100000
+panel_factor = 10
 features = [
-    "age",
-    "female",
-    "car_ownership",
-    "driving_license",
-    "dur_walking",
-    "dur_cycling",
-    "dur_pt_rail",
-    "dur_driving",
+    "f0",
+    "f1",
+    "f2",
+    "f3",
+    "f4",
+    "f5",
+    "f6",
+    "f7",
 ]
 alt_spec_features = {
-    0: ["dur_walking"],
-    1: ["dur_cycling"],
-    2: ["dur_pt_rail"],
-    3: ["dur_driving"],
+    0: ["f4"],
+    1: ["f5"],
+    2: ["f6"],
+    3: ["f7"],
 }
 socio_demo_chars = [
-    "age",
-    "female",
-    "car_ownership",
-    "driving_license",
+    "f0",
+    "f1",
+    "f2",
+    "f3",
 ]
 all_models = {
     "RUMBoost": RUMBoost,
     "TasteNet": TasteNet,
 }
+coefficients = [-1, -1, -1, -1]
 
 
 # Define the utility function
-def utility_function_LPMC(data: pd.DataFrame, with_noise: bool = False) -> np.ndarray:
+def utility_function(data: pd.DataFrame, with_noise: bool = False) -> np.ndarray:
     """
-    Create the utility function for the LPMC dataset.
+    Create the utility function for the synthetic dataset.
 
     Parameters
     ----------
@@ -70,24 +72,126 @@ def utility_function_LPMC(data: pd.DataFrame, with_noise: bool = False) -> np.nd
     # Extract the parameters
     V = np.zeros((data.shape[0], n_alternatives))
 
-    fct_int_0 = create_functional_intercept(data, ["age", "female"])
-    fct_int_1 = create_functional_intercept(data, ["age", "car_ownership"])
-    fct_int_2 = create_functional_intercept(data, ["age", "driving_license"])
-    fct_int_3 = create_functional_intercept(
-        data,
-        ["female", "car_ownership", "driving_license"],
+    fct_effects = create_functional_effects(
+        data.values, n_utility=n_alternatives, n_socio_dem=len(socio_demo_chars)
     )
 
-    V[:, 0] = fct_int_0 / fct_int_0.max() + -1 * data["dur_walking"]
-    V[:, 1] = fct_int_1 / fct_int_1.max() + -1 * data["dur_cycling"]
-    V[:, 2] = fct_int_2 / fct_int_2.max() + -1 * data["dur_pt_rail"]
-    V[:, 3] = fct_int_3 / fct_int_3.max() + -1 * data["dur_driving"]
+    for i in range(n_alternatives):
+        V[:, i] = (
+            fct_effects[:, i]
+            + coefficients[i] * data.values[:, i + len(socio_demo_chars)]
+        )
 
     if with_noise:
-        noise = generate_noise(0, 1, (data.shape[0], n_alternatives))
+        noise = generate_noise(0, 0.1, (data.shape[0], n_alternatives))
         V += noise
 
     return V
+
+
+def generate_x(
+    n: int, k: int, n_socio_dem: int = 0, panel_factor: int = 1
+) -> np.ndarray:
+    """
+    Generate synthetic data.
+
+    Parameters
+    ----------
+    n: int
+        The total number of samples.
+    k: int
+        The total number of features.
+    n_socio_dem: int
+        The number of socio-demographic features.
+    panel_factor: int
+        The panel factor, i.e. the number of repeated trips per observation.
+
+    Returns
+    -------
+    np.ndarray
+        The generated synthetic data.
+    """
+    # socio-demographic variables
+    if n_socio_dem > 0:
+        n_s = int(n / panel_factor)
+        x = np.random.uniform(0, 1, (n_s, n_socio_dem))
+        x_socio_dem = x.repeat(panel_factor, axis=0)
+    else:
+        x_socio_dem = np.empty((n, 0))
+
+    # alternative specific variables
+    n_alt_spec = k - n_socio_dem
+
+    x_alt_spec = np.random.uniform(0, 1, (n, n_alt_spec))
+
+    return np.concatenate([x_socio_dem, x_alt_spec], axis=1)
+
+
+def create_dataset() -> pd.DataFrame:
+    """
+    Create a pandas DataFrame from the synthetic data array.
+
+    Returns
+    -------
+    pd.DataFrame
+        The created DataFrame.
+    """
+    x_arr = generate_x(
+        n=num_observations,
+        k=len(features),
+        n_socio_dem=len(socio_demo_chars),
+        panel_factor=panel_factor,
+    )
+
+    x_arr_test = generate_x(
+        n=int(0.2 * num_observations),
+        k=len(features),
+        n_socio_dem=len(socio_demo_chars),
+        panel_factor=panel_factor,
+    )
+
+    data_train, data_test = pd.DataFrame(
+        {features[i]: x_arr[:, i] for i in range(x_arr.shape[1])}
+    ), pd.DataFrame({features[i]: x_arr_test[:, i] for i in range(x_arr_test.shape[1])})
+
+    return data_train, data_test
+
+
+def create_functional_effects(
+    x: np.ndarray, n_utility: int, n_socio_dem: int
+) -> np.ndarray:
+    """
+    Create functional effects for a given number of utilities and features per utility.
+    The functional effects are bounded by [0,1] and use all socio-demographic characteristics.
+    This function assumes that the socio-demographic characteristics are in the first columns of the input array.
+
+    Parameters
+    ----------
+    x: np.ndarray
+        The input array containing the features.
+    n_utility: int
+        The number of utility functions to create.
+    n_socio_dem: int
+        The number of socio-demographic features.
+
+    Returns
+    -------
+    np.ndarray
+        The created functional effects.
+    """
+    effects = np.zeros((x.shape[0], n_utility))
+    for i in range(n_utility):
+        if i == 0:
+            effects[:, i] = np.prod(np.exp(x[:, :n_socio_dem]), axis=1)
+        elif i == 1:
+            effects[:, i] = np.sum(x[:, :n_socio_dem], axis=1) ** 2
+        elif i == 2:
+            effects[:, i] = -np.log(np.prod(x[:, :n_socio_dem], axis=1))
+
+        if i < n_utility - 1:
+            effects[:, i] = effects[:, i] / effects[:, i].max()
+
+    return effects
 
 
 def generate_noise(mean: float, sd: float, n: tuple[int, ...]) -> np.ndarray:
@@ -112,7 +216,7 @@ def generate_noise(mean: float, sd: float, n: tuple[int, ...]) -> np.ndarray:
 
 
 def compute_prob(V: np.ndarray) -> np.ndarray:
-    """ 
+    """
     Compute the probabilities for each alternative using the softmax function.
 
     Parameters
@@ -150,81 +254,6 @@ def generate_labels(probs: np.ndarray) -> np.ndarray:
     return np.array(labels)
 
 
-def group_functional_intercepts(
-    data_train: pd.DataFrame, data_test: pd.DataFrame
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Create the synthetic functional intercepts for the LPMC dataset.
-    Parameters
-    ----------
-    data_train: pd.DataFrame
-        Data used for the synthetic experiment
-    data_test: pd.DataFrame
-        Data used for the synthetic experiment
-
-    Returns
-    -------
-    fct_intercepts: Tuple[np.ndarray, np.ndarray]
-        The functional intercepts for the training and test sets.
-    """
-    fct_intercept_0 = create_functional_intercept(data_train, ["age", "female"])
-    fct_intercept_0_test = create_functional_intercept(data_test, ["age", "female"])
-    fct_intercept_1 = create_functional_intercept(data_train, ["age", "car_ownership"])
-    fct_intercept_1_test = create_functional_intercept(
-        data_test, ["age", "car_ownership"]
-    )
-    fct_intercept_2 = create_functional_intercept(
-        data_train, ["age", "driving_license"]
-    )
-    fct_intercept_2_test = create_functional_intercept(
-        data_test, ["age", "driving_license"]
-    )
-    fct_intercept_3 = create_functional_intercept(
-        data_train, ["female", "car_ownership", "driving_license"]
-    )
-    fct_intercept_3_test = create_functional_intercept(
-        data_test, ["female", "car_ownership", "driving_license"]
-    )
-    fct_intercepts_train = np.array(
-        [
-            fct_intercept_0 / fct_intercept_0.max(),
-            fct_intercept_1 / fct_intercept_1.max(),
-            fct_intercept_2 / fct_intercept_2.max(),
-            fct_intercept_3 / fct_intercept_3.max(),
-        ]
-    ).T
-    fct_intercepts_test = np.array(
-        [
-            fct_intercept_0_test / fct_intercept_0_test.max(),
-            fct_intercept_1_test / fct_intercept_1_test.max(),
-            fct_intercept_2_test / fct_intercept_2_test.max(),
-            fct_intercept_3_test / fct_intercept_3_test.max(),
-        ]
-    ).T
-    return fct_intercepts_train, fct_intercepts_test
-
-
-def create_functional_intercept(data: pd.DataFrame, features_name: list) -> np.ndarray:
-    """
-    Create the synthetic functional intercepts
-
-    Parameters
-    ----------
-    data: pd.DataFrame
-        Data used for the synthetic experiment
-    features_name: list
-        Features used in the functional intercept
-
-    Returns
-    -------
-    functional_intercept: np.ndarray
-        The functional intercepts
-    """
-    data_arr = data[features_name].values
-    functional_intercept = data_arr.prod(axis=1)
-    return functional_intercept
-
-
 def add_simulated_choices(data: pd.DataFrame, with_noise: bool = False) -> pd.DataFrame:
     """
     Add simulated choices to the data based on the utility function.
@@ -241,7 +270,7 @@ def add_simulated_choices(data: pd.DataFrame, with_noise: bool = False) -> pd.Da
     data: pd.DataFrame
         Data with the simulated choices added.
     """
-    V = utility_function_LPMC(data, with_noise=with_noise)
+    V = utility_function(data, with_noise=with_noise)
     probs = compute_prob(V)
     data["choice"] = generate_labels(probs)
     return data
@@ -252,6 +281,7 @@ def gather_functional_intercepts(
     model: RUMBoost | TasteNet,
     socio_demo_characts: list[str] = socio_demo_chars,
     n_classes: int = n_alternatives,
+    alt_normalised: int = 0,
 ) -> np.ndarray:
     """
     Gather the learnt functional intercepts for the given model.
@@ -266,6 +296,8 @@ def gather_functional_intercepts(
         The socio-demographic characteristics used for the functional intercepts.
     n_classes: int, optional (default: n_alternatives)
         The number of alternatives (classes) in the model.
+    alt_normalised: int, optional (default: 0)
+        The alternative index for the normalised functional intercepts.
 
     Returns
     -------
@@ -276,7 +308,19 @@ def gather_functional_intercepts(
         rumboost_predictor = model.model.boosters[-n_classes:]
         fct_intercept = np.zeros((data.shape[0], n_classes))
         for i, predictor in enumerate(rumboost_predictor):
-            fct_intercept[:, i] = predictor.predict(data[socio_demo_characts], raw_score=True)
+            fct_intercept[:, i] = predictor.predict(
+                data[socio_demo_characts], raw_score=True
+            )
+        dummy_array = np.zeros((1,)).reshape(-1, 1)
+        asc = np.zeros(
+            (
+                1,
+                n_classes,
+            )
+        )
+        for i, booster in enumerate(model.model.boosters[:-n_classes]):
+            asc[0, i] = booster.predict(dummy_array, raw_score=True)
+        fct_intercept = fct_intercept + asc
     else:
         tastenet_predictor = model.model.params_module
         # already computing the functional values as they are outputted all at once
@@ -287,10 +331,12 @@ def gather_functional_intercepts(
         )
         fct_intercept = tastenet_predictor(sdc_tensor).detach().cpu().numpy().squeeze()
 
-    return fct_intercept
+    return fct_intercept - fct_intercept[:, alt_normalised].reshape(-1, 1)
 
 
-def l1_distance(true_fct_intercept: np.ndarray, learnt_fct_intercept: np.ndarray) -> float:
+def l1_distance(
+    true_fct_intercept: np.ndarray, learnt_fct_intercept: np.ndarray
+) -> float:
     """
     Compute the L1 distance between the true and learnt functional intercepts.
 
@@ -322,16 +368,16 @@ def run_experiment(args: argparse.Namespace) -> None:
     os.makedirs(args.outpath, exist_ok=True)
 
     # load data
-    data_train, data_test, _ = load_preprocess_LPMC(path="../data/LPMC/")
+    data_train, data_test = create_dataset()
 
     # create synthetic utility values and choices
     data_train = add_simulated_choices(
         data_train,
-        with_noise=False,
+        with_noise=True,
     )
     data_test = add_simulated_choices(
         data_test,
-        with_noise=False,
+        with_noise=True,
     )
 
     X_train, y_train = data_train[features], data_train["choice"]
@@ -339,9 +385,15 @@ def run_experiment(args: argparse.Namespace) -> None:
     X_test, y_test = data_test[features], data_test["choice"]
 
     # create synthetic "ground truth" functional intercepts
-    fct_intercept, fct_intercept_test = group_functional_intercepts(
-        data_train,
-        data_test,
+    fct_intercept = create_functional_effects(
+        data_train.values,
+        n_alternatives,
+        len(socio_demo_chars),
+    )
+    fct_intercept_test = create_functional_effects(
+        data_test.values,
+        n_alternatives,
+        len(socio_demo_chars),
     )
 
     # define instances of the models
@@ -383,10 +435,10 @@ def run_experiment(args: argparse.Namespace) -> None:
 
     # get learnt functional intercepts
     learnt_fct_intercepts = gather_functional_intercepts(
-        data_train, model, socio_demo_chars, n_alternatives
+        data_train, model, socio_demo_chars, n_alternatives, alt_normalised=3
     )
     learnt_fct_intercepts_test = gather_functional_intercepts(
-        data_test, model, socio_demo_chars, n_alternatives
+        data_test, model, socio_demo_chars, n_alternatives, alt_normalised=3
     )
 
     # compute L1 distance between true and learnt functional intercepts
@@ -406,10 +458,12 @@ def run_experiment(args: argparse.Namespace) -> None:
         "train_loss": best_train_loss,
         "val_loss": best_val_loss,
         "loss_test": loss_test,
-        "l1_distance_train": l1_distance_train,
-        "l1_distance_test": l1_distance_test,
         "train_time": end_time - start_time,
     }
+
+    for i in range(n_alternatives):
+        results_dict[f"L1_distance_train_class_{i}"] = l1_distance_train[i]
+        results_dict[f"L1_distance_test_class_{i}"] = l1_distance_test[i]
 
     if args.save_model:
         # save the results
@@ -431,8 +485,28 @@ def hyperparameter_search(model: str = "RUMBoost") -> None:
     model : str
         The model to train. Can be "RUMBoost" or "TasteNet".
     """
+    # load data
+    data_train, _ = create_dataset()
 
-    def objective(trial: optuna.Trial, model: str, func_int: bool, func_params: bool) -> float:
+    # create synthetic utility values and choices
+    data_train = add_simulated_choices(
+        data_train,
+        with_noise=True,
+    )
+
+    X, y = data_train[features], data_train["choice"]
+
+    # ensuring a split that does not have individuals in both train and validation sets
+    train_indices, val_indices = np.arange(int(X.shape[0] * 0.8)), np.arange(
+        int(X.shape[0] * 0.8), X.shape[0]
+    )
+
+    X_train, y_train = X.iloc[train_indices].copy(), y.iloc[train_indices].copy()
+    X_val, y_val = X.iloc[val_indices].copy(), y.iloc[val_indices].copy()
+
+    def objective(
+        trial: optuna.Trial, model: str, func_int: bool, func_params: bool
+    ) -> float:
         """
         Optuna objective function for the hyperparameter search.
 
@@ -452,17 +526,6 @@ def hyperparameter_search(model: str = "RUMBoost") -> None:
         float
             The average validation loss over the folds.
         """
-
-        # load the data
-        data, _, folds = load_preprocess_LPMC(path="../data/LPMC/")
-
-        data = add_simulated_choices(
-            data,
-            features_name=features,
-            with_noise=False,
-        )
-
-        X, y = data[features], data["choice"]
 
         # default args
         args = parse_cmdline_args()
@@ -553,33 +616,22 @@ def hyperparameter_search(model: str = "RUMBoost") -> None:
                 args=args,
             )
 
-        avg_val_loss = 0.0
-        avg_best_iter = 0.0
-        k = 1
-        for i, (train_idx, val_idx) in enumerate(folds):
-            if i > 0:
-                continue  # can only do 1 fold because of computational time
-            # split data
-            X_train, y_train = X.iloc[train_idx].copy(), y.iloc[train_idx].copy()
-            X_val, y_val = X.iloc[val_idx].copy(), y.iloc[val_idx].copy()
 
-            # build the dataloader
-            model.build_dataloader(X_train, y_train, X_val, y_val)
+        # build the dataloader
+        model.build_dataloader(X_train, y_train, X_val, y_val)
 
-            # fit the model
-            _, best_val_loss = model.fit()
-            avg_val_loss += best_val_loss
-            avg_best_iter += model.best_iteration
+        # fit the model
+        _, best_val_loss = model.fit()
+        best_iter = model.best_iteration
 
-        avg_best_iter /= k
-        trial.set_user_attr("best_iteration", avg_best_iter)
+        trial.set_user_attr("best_iteration", best_iter)
 
         del model
 
         gc.collect()
         torch.cuda.empty_cache()
 
-        return avg_val_loss / k
+        return best_val_loss
 
     func_int = True
     func_params = False
@@ -645,7 +697,7 @@ def plot_ind_spec_constant(
         If the model is trained with functional intercept.
     """
     # load data
-    df_train, df_test, _ = load_preprocess_LPMC(path="../data/LPMC/")
+    df_train, df_test = create_dataset()
 
     # Plot the features
     tex_fonts = {
@@ -682,11 +734,13 @@ def plot_ind_spec_constant(
         }
     )
 
-    num_plots = n_alternatives
+    num_plots = n_alternatives - 1
 
-    true_fct_intercepts_train, true_fct_intercepts_test = group_functional_intercepts(
-        df_train,
-        df_test,
+    true_fct_intercepts_train = create_functional_effects(
+        df_train.values, n_alternatives, len(socio_demo_chars)
+    )
+    true_fct_intercepts_test = create_functional_effects(
+        df_test.values, n_alternatives, len(socio_demo_chars)
     )
 
     for t in ["train", "test"]:
@@ -702,33 +756,24 @@ def plot_ind_spec_constant(
                 model_path = f"results/synthetic/{model}/model_fi{functional_intercept}_fp{functional_params}.json"
                 rumboost = all_models[model]()
                 rumboost.load_model(model_path)
-                rumboost_predictor = rumboost.model.boosters[-num_plots:]
-
+                y_rumboost = gather_functional_intercepts(
+                    df, rumboost, socio_demo_chars, n_alternatives, alt_normalised=3
+                )
             elif model == "TasteNet":
                 model_path = f"results/synthetic/{model}/model_fi{functional_intercept}_fp{functional_params}.pth"
                 tastenet = all_models[model]()
                 tastenet.load_model(path=model_path)
-                tastenet_predictor = tastenet.model.params_module
-                # already computing the functional values as they are outputted all at once
-                sdc_tensor = (
-                    torch.from_numpy(df[socio_demo_chars].values)
-                    .to(torch.device("cuda"))
-                    .to(torch.float32)
+                y_tastenet = gather_functional_intercepts(
+                    df, tastenet, socio_demo_chars, n_alternatives, alt_normalised=3
                 )
-                y_tastenet = (
-                    tastenet_predictor(sdc_tensor).detach().cpu().numpy().squeeze()
-                )
-                if not functional_params:
-                    y_tastenet = y_tastenet.reshape(-1, n_alternatives)
 
         colors = ["#264653", "#2a9d8f", "#0073a1", "#7cd2bf"]
 
         for j in range(num_plots):
-            fig, axes = plt.subplots(1, 1, figsize=(8, 6), dpi=300)
+            fig, axes = plt.subplots(1, 3, figsize=(8, 6), dpi=300)
             if "RUMBoost" in all_models:
-                y_rumboost = rumboost_predictor[j].predict(df[socio_demo_chars])
-                min_val = y_rumboost.min()
-                max_val = y_rumboost.max()
+                min_val = y_rumboost[:, j].min()
+                max_val = y_rumboost[:, j].max()
             if "TasteNet" in all_models:
                 min_val = min(min_val, y_tastenet[:, j].min())
                 max_val = max(max_val, y_tastenet[:, j].max())
@@ -741,51 +786,54 @@ def plot_ind_spec_constant(
             max_count = np.histogram(true_fct_intercepts[:, j], bins=bin_edges)[0].max()
             for model in all_models.keys():
                 if model == "RUMBoost":
-                    counts, _ = np.histogram(y_rumboost, bins=bin_edges)
+                    counts, _ = np.histogram(y_rumboost[:, j], bins=bin_edges)
                 elif model == "TasteNet":
                     counts, _ = np.histogram(y_tastenet[:, j], bins=bin_edges)
                 max_count = max(max_count, counts.max())
 
-            sns.histplot(
-                true_fct_intercepts[:, j],
-                ax=axes,
-                bins=bin_edges,
-                color="black",
-                label="True functional intercept",
-            )
 
-            for i, model in enumerate(all_models.keys()):
-                ax = axes
-                if model == "RUMBoost":
+
+            for i, (model, ax) in enumerate(zip(["True functional intercept"] + list(all_models.keys()), axes.flatten())):
+                if model == "True functional intercept":
                     sns.histplot(
-                        y_rumboost,
+                        true_fct_intercepts[:, j],
                         ax=ax,
                         bins=bin_edges,
-                        color=colors[i],
-                        label=f"{model} (L1: {l1_distance(true_fct_intercepts[:,j], y_rumboost):.2f})",
+                        color="black",
+                        label="True functional intercept",
+                    )
+                elif model == "RUMBoost":
+                    sns.histplot(
+                        y_rumboost[:, j],
+                        ax=ax,
+                        bins=bin_edges,
+                        color=colors[i - 1],
+                        label=f"{model} (L1: {l1_distance(true_fct_intercepts[:,j], y_rumboost[:, j]):.2f})",
                     )
                 elif model == "TasteNet":
                     sns.histplot(
                         y_tastenet[:, j],
                         ax=ax,
                         bins=bin_edges,
-                        color=colors[i],
+                        color=colors[i - 1],
                         label=f"{model} (L1: {l1_distance(true_fct_intercepts[:,j], y_tastenet[:, j]):.2f})",
                     )
 
-            title = model
-            fig_title = "Intercept"
-            ax.set_title(title)
-            ax.set_ylabel("Count")
-            plt.title(fig_title, fontsize=8)
+                title = model
 
-            xlim = (
-                min_val - (max_val - min_val) * 0.01,
-                max_val + (max_val - min_val) * 0.01,
-            )
-            ylim = (0, max_count * 1.1)
+                ax.set_title(title)
+                if i == 0:
+                    ax.set_ylabel("Count")
 
-            plt.setp(axes, xlim=xlim, ylim=ylim)
+
+                xlim = (
+                    min_val - (max_val - min_val) * 0.01,
+                    max_val + (max_val - min_val) * 0.01,
+                )
+                ylim = (0, max_count * 1.1)
+
+                plt.setp(axes, xlim=xlim, ylim=ylim)
+
             plt.legend()
 
             if save_fig:
@@ -866,7 +914,7 @@ def plot_alt_spec_features(
 
     for i, as_feat in enumerate(alt_spec_features_list):
 
-        x = np.linspace(0, 3, 10000)
+        x = np.linspace(0, 1, 10000)
         dummy_array = np.zeros((10000, len(alt_spec_features_list)))
         dummy_array[:, i] = x
         y_rumboost = rumboost_params_fi[i].predict(dummy_array[:, i].reshape(-1, 1))
@@ -920,27 +968,33 @@ if __name__ == "__main__":
                 args.__dict__.update(optimal_hyperparams)
         except FileNotFoundError:
             print(
-                f"Optimal hyperparameters not found for {model}. Using default hyperparameters."
+                f"Optimal hyperparameters not found for {model}. Running hyperparameter search."
             )
-            optimal_hyperparams = None
+            hyperparameter_search(model=model)
+            opt_hyperparams_path = (
+                f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
+            )
+            with open(opt_hyperparams_path, "rb") as f:
+                optimal_hyperparams = pickle.load(f)
+                if "layer_sizes" in optimal_hyperparams:
+                    optimal_hyperparams["layer_sizes"] = [
+                        int(size)
+                        for size in optimal_hyperparams["layer_sizes"].split(",")
+                    ]
+                if "learning_rate" not in optimal_hyperparams:
+                    optimal_hyperparams["learning_rate"] = 1
+                args.__dict__.update(optimal_hyperparams)
         args.functional_intercept = True
         args.functional_params = False
         args.save_model = True
         args.model = model
         args.dataset = "synthetic"
         if model == "RUMBoost":
-            args.device = "cpu"
             args.num_iterations = int(args.best_iteration)
-            args.num_iterations = 1000
         else:
-            args.device = "cuda"
             args.num_epochs = int(args.best_iteration)
         args.early_stopping_rounds = None
-        print(args.lambda_l1)
-        print(args.learning_rate)
-        print(args.num_leaves)
-        print(args.act_func)
         run_experiment(args)
 
     plot_ind_spec_constant()
-    plot_alt_spec_features(["dur_walking", "dur_cycling", "dur_pt_rail", "dur_driving"])
+    plot_alt_spec_features(["f4", "f5", "f6", "f7"])

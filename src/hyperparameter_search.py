@@ -13,6 +13,7 @@ from functools import partial
 from helper import set_all_seeds
 from utils import pkl_to_df
 from constants import (
+    PATH_TO_DATA,
     PATH_TO_DATA_TRAIN,
     PATH_TO_DATA_VAL,
     PATH_TO_FOLDS,
@@ -20,6 +21,8 @@ from constants import (
 )
 from models_wrapper import RUMBoost, TasteNet
 from parser import parse_cmdline_args
+
+from rumboost.datasets import load_preprocess_LPMC
 
 
 def objective(trial, model, func_int, func_params, dataset):
@@ -61,7 +64,7 @@ def objective(trial, model, func_int, func_params, dataset):
             if col not in all_alt_spec_features and col not in ["CHOICE"]
         ]
         folds = [("dummy", "dummy")]
-
+        num_classes = 3
     elif dataset == "easySHARE":
         data = pd.read_csv(PATH_TO_DATA_TRAIN[dataset])
 
@@ -83,11 +86,25 @@ def objective(trial, model, func_int, func_params, dataset):
             if col not in all_alt_spec_features
             and col not in ["mergeid", "hhid", "coupleid", "depression_scale"]
         ]
+        num_classes = 13
+    elif dataset == "LPMC":
+        data_train, _, folds = load_preprocess_LPMC(PATH_TO_DATA[dataset])
+        features = [col for col in data_train.columns if col not in ["choice"]]
+        target = "choice"
+
+        X, y = data_train[features], data_train[target]
+
+        socio_demo_chars = [
+            col
+            for col in data_train.columns
+            if col not in all_alt_spec_features and col not in ["choice"]
+        ]
+        num_classes = 4
 
     # default args
     args = parse_cmdline_args()
 
-    num_classes = 13 if dataset == "easySHARE" else 3
+
 
     if model == "RUMBoost":
         # parameters for RUMBoost
@@ -178,7 +195,7 @@ def objective(trial, model, func_int, func_params, dataset):
         if i > 0:
             continue  # can only do 1 fold because of computational time
         # split data
-        if dataset == "easySHARE":
+        if dataset in ["easySHARE", "LPMC"]:
             X_train, y_train = X.iloc[train_idx].copy(), y.iloc[train_idx].copy()
             X_val, y_val = X.iloc[val_idx].copy(), y.iloc[val_idx].copy()
 
@@ -214,13 +231,10 @@ if __name__ == "__main__":
 
     # set the random seed for reproducibility
     set_all_seeds(42)
-    for dataset in ["easySHARE"]:#"SwissMetro"]: 
-        for model in ["TasteNet"]:#"TasteNet"]:#,
-            for func_int in [True]: #, False]:#,
-                for func_params in [True]: #, False]:
-
-                    if not func_int and not func_params:
-                        continue
+    for dataset in ["LPMC"]:#"SwissMetro", "easySHARE"]: 
+        for model in ["TasteNet", "RUMBoost"]:#"TasteNet"]:#,
+            for func_int in [True, False]: #, False]:#,
+                for func_params in [True, False]: #, False]:
 
                     objective = partial(
                         objective,
@@ -236,7 +250,7 @@ if __name__ == "__main__":
                     print(
                         f"Starting hyperparameter search on dataset {dataset} for {model} with func params {func_params} and with func intercept {func_int}..."
                     )
-                    study.optimize(objective, n_trials=100, n_jobs=1)
+                    study.optimize(objective, n_trials=1, n_jobs=1)
                     end_time = time.time()
 
                     best_params = study.best_params
