@@ -770,7 +770,8 @@ def plot_ind_spec_constant(
         colors = ["#264653", "#2a9d8f", "#0073a1", "#7cd2bf"]
 
         for j in range(num_plots):
-            fig, axes = plt.subplots(1, 3, figsize=(8, 6), dpi=300)
+            fig, axes = plt.subplots(1, 3, figsize=(8, 2), dpi=300)
+            # fig, axes = plt.subplots(1, 1, figsize=(8, 6), dpi=300)
             if "RUMBoost" in all_models:
                 min_val = y_rumboost[:, j].min()
                 max_val = y_rumboost[:, j].max()
@@ -791,7 +792,41 @@ def plot_ind_spec_constant(
                     counts, _ = np.histogram(y_tastenet[:, j], bins=bin_edges)
                 max_count = max(max_count, counts.max())
 
+            # sns.histplot(
+            #     true_fct_intercepts[:, j],
+            #     ax=axes,
+            #     bins=bin_edges,
+            #     color="black",
+            #     label="True functional intercept",
+            #     alpha=1
+            # )
+            # sns.histplot(
+            #     y_rumboost[:, j],
+            #     ax=axes,
+            #     bins=bin_edges,
+            #     color=colors[0],
+            #     label=f"GBDT (MAE: {l1_distance(true_fct_intercepts[:,j], y_rumboost[:, j])/y_rumboost.shape[0]:.2f})",
+            #     alpha=0.7
+            # )
+            # sns.histplot(
+            #     y_tastenet[:, j],
+            #     ax=axes,
+            #     bins=bin_edges,
+            #     color=colors[1],
+            #     label=f"DNN (MAE: {l1_distance(true_fct_intercepts[:,j], y_tastenet[:, j])/y_tastenet.shape[0]:.2f})",
+            #     alpha=0.7
+            # )
+            # axes.set_ylabel("Count")
+            # axes.legend()
 
+
+            # xlim = (
+            #     min_val - (max_val - min_val) * 0.01,
+            #     max_val + (max_val - min_val) * 0.01,
+            # )
+            # ylim = (0, max_count * 1.1)
+
+            # plt.setp(axes, xlim=xlim, ylim=ylim)
 
             for i, (model, ax) in enumerate(zip(["True functional intercept"] + list(all_models.keys()), axes.flatten())):
                 if model == "True functional intercept":
