@@ -90,34 +90,31 @@ class RUMBoost:
             )
             general_params["max_booster_to_update"] = max_boosters
 
-            if (
-                kwargs.get("args").functional_intercept
-                or kwargs.get("args").functional_params
-            ):
-                # add hyperparameters
-                hyperparameters = {
-                    "num_leaves": kwargs.get("args").num_leaves,
-                    "min_gain_to_split": kwargs.get("args").min_gain_to_split,
-                    "min_sum_hessian_in_leaf": kwargs.get(
-                        "args"
-                    ).min_sum_hessian_in_leaf,
-                    "learning_rate": np.minimum(
-                        kwargs.get("args").learning_rate / max_boosters,
-                        0.1,
-                    ),
-                    "max_bin": kwargs.get("args").max_bin,
-                    "min_data_in_bin": kwargs.get("args").min_data_in_bin,
-                    "min_data_in_leaf": kwargs.get("args").min_data_in_leaf,
-                    "feature_fraction": kwargs.get("args").feature_fraction,
-                    "bagging_fraction": kwargs.get("args").bagging_fraction,
-                    "bagging_freq": kwargs.get("args").bagging_freq,
-                    "lambda_l1": kwargs.get("args").lambda_l1,
-                    "lambda_l2": kwargs.get("args").lambda_l2,
-                    # "objective": "regression" if kwargs.get("num_classes") == 1 else "binary",
-                }
-                self.rum_structure[-num_boosters:] = add_hyperparameters(
-                    self.rum_structure[-num_boosters:], hyperparameters
-                )
+
+            # add hyperparameters
+            hyperparameters = {
+                "num_leaves": kwargs.get("args").num_leaves,
+                "min_gain_to_split": kwargs.get("args").min_gain_to_split,
+                "min_sum_hessian_in_leaf": kwargs.get(
+                    "args"
+                ).min_sum_hessian_in_leaf,
+                "learning_rate": np.minimum(
+                    kwargs.get("args").learning_rate / max_boosters,
+                    0.1,
+                ),
+                "max_bin": kwargs.get("args").max_bin,
+                "min_data_in_bin": kwargs.get("args").min_data_in_bin,
+                "min_data_in_leaf": kwargs.get("args").min_data_in_leaf,
+                "feature_fraction": kwargs.get("args").feature_fraction,
+                "bagging_fraction": kwargs.get("args").bagging_fraction,
+                "bagging_freq": kwargs.get("args").bagging_freq,
+                "lambda_l1": kwargs.get("args").lambda_l1,
+                "lambda_l2": kwargs.get("args").lambda_l2,
+                # "objective": "regression" if kwargs.get("num_classes") == 1 else "binary",
+            }
+            self.rum_structure[-num_boosters:] = add_hyperparameters(
+                self.rum_structure[-num_boosters:], hyperparameters
+            )
 
             if kwargs.get("args").dataset == "easySHARE":
                 self.model_spec = {

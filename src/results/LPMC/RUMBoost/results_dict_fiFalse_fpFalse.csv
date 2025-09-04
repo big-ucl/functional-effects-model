@@ -1,0 +1,2 @@
+,train_loss,val_loss,train_time,mae_test,loss_test,emae_test
+0,0.79106694,1000000.0,3.3620846271514893,0,0.8238340135070585,0

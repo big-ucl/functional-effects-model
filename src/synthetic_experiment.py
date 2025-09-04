@@ -808,7 +808,7 @@ def plot_ind_spec_constant(
                         ax=ax,
                         bins=bin_edges,
                         color=colors[i - 1],
-                        label=f"{model} (L1: {l1_distance(true_fct_intercepts[:,j], y_rumboost[:, j]):.2f})",
+                        label=f"GBDT (MAE: {l1_distance(true_fct_intercepts[:,j], y_rumboost[:, j])/y_rumboost.shape[0]:.2f})",
                     )
                 elif model == "TasteNet":
                     sns.histplot(
@@ -816,14 +816,13 @@ def plot_ind_spec_constant(
                         ax=ax,
                         bins=bin_edges,
                         color=colors[i - 1],
-                        label=f"{model} (L1: {l1_distance(true_fct_intercepts[:,j], y_tastenet[:, j]):.2f})",
+                        label=f"DNN (MAE: {l1_distance(true_fct_intercepts[:,j], y_tastenet[:, j])/y_tastenet.shape[0]:.2f})",
                     )
 
-                title = model
-
-                ax.set_title(title)
                 if i == 0:
                     ax.set_ylabel("Count")
+                else:
+                    ax.set_ylabel("")
 
 
                 xlim = (
@@ -834,7 +833,7 @@ def plot_ind_spec_constant(
 
                 plt.setp(axes, xlim=xlim, ylim=ylim)
 
-            plt.legend()
+                ax.legend()
 
             if save_fig:
                 save_path = (
@@ -927,9 +926,9 @@ def plot_alt_spec_features(
         # Plot the features
         plt.figure(figsize=(2.62, 1.97), dpi=300)
 
-        plt.plot(x, y_rumboost, label="RUMBoost", color=colors[2], linewidth=0.8)
+        plt.plot(x, y_rumboost, label="GBDT", color=colors[2], linewidth=0.8)
 
-        plt.plot(x, y_tastenet, label="TasteNet", color=colors[3], linewidth=0.8)
+        plt.plot(x, y_tastenet, label="DNN", color=colors[3], linewidth=0.8)
 
         plt.plot(x, y_true, label="True function", color="black", linewidth=0.8)
 

@@ -1,0 +1,26 @@
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+ & \multicolumn{2}{r}{} & \multicolumn{4}{r}{RUMBoost} & \multicolumn{4}{r}{TasteNet} \\
+ & Search space & Distribution & Functional intercept and slopes & Functional slopes only & Functional intercept only & No functional effects & Functional intercept and slopes & Functional slopes only & Functional intercept only & No functional effects \\
+\midrule
+Validation MCEL & - & - & 0.668 & 0.677 & 0.645 & 0.809 & 0.657 & 0.67 & 0.664 & 0.835 \\
+Time [s] & - & - & 1464.0 & 1169.0 & 264.0 & 296.0 & 5519.0 & 6027.0 & 5045.0 & 4718.0 \\
+Best iteration/epoch & Max 3000 iterations \slash 200 epochs & - & 511.000 & 410.000 & 506.000 & 886.000 & 85.000 & 84.000 & 91.000 & 61.000 \\
+lambda_l1 & $[10^{-8}, 1]$ & Log-uniform & 0.000 & 0.000 & 0.591 & 0 & 0.000 & 0.000 & 0.000 & 0 \\
+lambda_l2 & $[10^{-8}, 1]$ & Log-uniform & 0.001 & 0.000 & 0.076 & 0 & 0.001 & 0.068 & 0.000 & 0 \\
+num_leaves & $[2, 256]$ & Discrete uniform & 3.000 & 3.000 & 73.000 & 236.000 & - & - & - & - \\
+feature_fraction & $[0.4, 1]$ & Uniform & 0.583 & 0.860 & 0.960 & 0.978 & - & - & - & - \\
+bagging_fraction & $[0.4, 1]$ & Uniform & 0.759 & 0.720 & 0.592 & 0.634 & - & - & - & - \\
+bagging_freq & $[1, 7]$ & Discrete uniform & 4.000 & 7.000 & 2.000 & 2.000 & - & - & - & - \\
+min_data_in_leaf & $[1, 200]$ & Discrete uniform & 87.000 & 37.000 & 124.000 & 61.000 & - & - & - & - \\
+max_bin & $[64, 511]$ & Discrete uniform & 470.000 & 152.000 & 85.000 & 474.000 & - & - & - & - \\
+min_sum_hessian_in_leaf & $[10^{-8}, 10]$ & Log-uniform & 0.000 & 0.000 & 0.000 & 3.083 & - & - & - & - \\
+min_gain_to_split & $[10^{-8}, 10]$ & Log-uniform & 0.000 & 0.870 & 2.373 & 0.001 & - & - & - & - \\
+batch_size & \{256, 512\} & Categorical & - & - & - & - & 256 & 256 & 256 & 256 \\
+learning_rate & $[0.0001, 0.01]$ & Log-uniform & 0.050 & 0.050 & 0.050 & 0.050 & 0.000 & 0.000 & 0.010 & 0.010 \\
+dropout & $[0.0, 0.9]$ & Uniform & - & - & - & 0 & 0.224 & 0.739 & 0.533 & 0 \\
+act_func & \{ReLU, Sigmoid, Tanh\} & Categorical & - & - & - & - & tanh & tanh & tanh & - \\
+batch_norm & \{True, False\} & Categorical & - & - & - & False & True & True & False & False \\
+layer_sizes & \{[32], [64], [128], [32, 32], [64, 64], [128, 128], [64, 128], [128, 64], [64, 128, 64]\} & Categorical & - & - & - & - & 32, 32 & 64, 64 & 32 & - \\
+\bottomrule
+\end{tabular}

@@ -1,10 +1,10 @@
 from main import main
 import numpy as np
 
-for functional_intercept in [True, False]:#, False]:#, 
-    for functional_params in [True, False]:#, False]:#True, 
-        for dataset in ["LPMC"]:#, "easySHARE"]:#"]: "SwissMetro", 
-            for model in ["RUMBoost", "TasteNet"]:#"TasteNet"]:#, 
+for functional_intercept in [False]:#, False]:#, 
+    for functional_params in [False]:#, False]:#True, 
+        for dataset in ["easySHARE", "SwissMetro"]: #, "LPMC"]:#, "easySHARE"]:#"]: "SwissMetro", 
+            for model in ["RUMBoost"]:#"TasteNet"]:#, 
 
                 main([
                     "--functional_intercept", str(functional_intercept).lower(),

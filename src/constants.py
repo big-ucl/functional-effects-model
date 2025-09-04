@@ -1,6 +1,6 @@
 PATH_TO_DATA = {
     "easySHARE": "../data/easySHARE/easySHARE_preprocessed.csv",
-    "SwissMetro": "",
+    "SwissMetro": "../data/SwissMetro/train.pkl",
     "LPMC": "../data/LPMC/",
 }
 PATH_TO_DATA_TRAIN = {

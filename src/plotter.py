@@ -19,6 +19,10 @@ all_models = {
     "TasteNet": TasteNet,
 }
 
+feature_duplicated = ["distance", "day_of_week", "start_time_linear"]
+
+lpmc_monotonic_constraints = [0, 1, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22]
+
 feature_names = {
     "bmi": "BMI",
     "chronic_mod": "Number of chronic conditions",
@@ -200,14 +204,14 @@ def plot_alt_spec_features(
         # Plot the features
         plt.figure(figsize=(2.62, 1.97), dpi=300)
 
-        plt.plot(x, y_rumboost, label="RUMBoost", color=colors[0], linewidth=0.8)
+        plt.plot(x, y_rumboost, label="GBDT", color=colors[0], linewidth=0.8)
         plt.plot(
-            x, y_rumboost_fi, label="RUMBoost - FI", color=colors[2], linewidth=0.8
+            x, y_rumboost_fi, label="GBDT - FI", color=colors[2], linewidth=0.8
         )
 
-        plt.plot(x, y_tastenet, label="TasteNet", color=colors[1], linewidth=0.8)
+        plt.plot(x, y_tastenet, label="DNN", color=colors[1], linewidth=0.8)
         plt.plot(
-            x, y_tastenet_fi, label="TasteNet - FI", color=colors[3], linewidth=0.8
+            x, y_tastenet_fi, label="DNN - FI", color=colors[3], linewidth=0.8
         )
         # plt.xlabel(feature_names[as_feat])
         plt.ylabel("Utility")
@@ -215,7 +219,11 @@ def plot_alt_spec_features(
         plt.tight_layout()
 
         if save_fig:
-            save_path = f"results/{dataset}/figures/{feature_names[as_feat]}.png"
+            if dataset == "LPMC" and as_feat in feature_duplicated:
+                class_number = 0 if i < 4 else 1 if i < 8 else 2 if i < 18 else 3
+            else:
+                class_number = ""
+            save_path = f"results/{dataset}/figures/{feature_names[as_feat]}{class_number}.png"
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
@@ -326,7 +334,7 @@ def plot_ind_spec_constant(
     df_train[socio_demo_chars] = scaler.fit_transform(df_train[socio_demo_chars])
     df[socio_demo_chars] = scaler.transform(df[socio_demo_chars])
 
-    num_classes = 1 if dataset == "easySHARE" else 3
+    num_classes = 1 if dataset == "easySHARE" else 3 if dataset == "SwissMetro" else 4
 
     num_plots = (
         functional_params * len(alt_spec_features) + functional_intercept * num_classes
@@ -382,12 +390,15 @@ def plot_ind_spec_constant(
             elif dataset == "SwissMetro" and j != 6:
                 y_rumboost = np.minimum(y_rumboost, 0)
 
+            if dataset == "LPMC" and functional_params and j in lpmc_monotonic_constraints:
+                y_rumboost = np.minimum(y_rumboost, 0)
+
             if (
                 dataset == "easySHARE"
                 and functional_intercept
                 and j >= num_plots - num_classes
             ):
-                first_threshold = rumboost.model.thresholds[0].cpu().numpy()
+                first_threshold = rumboost.model.thresholds[0]
                 y_rumboost = y_rumboost - first_threshold
             min_val = y_rumboost.min()
             max_val = y_rumboost.max()
@@ -398,8 +409,16 @@ def plot_ind_spec_constant(
                     y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
             elif dataset == "SwissMetro" and j != 6:
                 y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
+
+            if dataset == "LPMC" and functional_params and j in lpmc_monotonic_constraints:
+                y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
+
             min_val = min(min_val, y_tastenet[:, j].min())
             max_val = max(max_val, y_tastenet[:, j].max())
+
+        if min_val == max_val:
+            min_val = min_val - 0.05
+            max_val = max_val + 0.05
 
         bin_edges = np.linspace(min_val, max_val, 50)
 
@@ -437,7 +456,7 @@ def plot_ind_spec_constant(
                     # multiple="stack",
                 )
 
-            title = model
+            title = "GBDT" if model == "RUMBoost" else "DNN"
 
             if functional_params and j < num_plots - num_classes:
                 fig_title = f"{alt_spec_features[j]}"
@@ -462,12 +481,16 @@ def plot_ind_spec_constant(
         if save_fig:
             if not feature_to_highlight:
                 feature_to_highlight = ""
+            if dataset == "LPMC" and functional_params and j < len(alt_spec_features) and alt_spec_features[j] in feature_duplicated:
+                class_number = 0 if j < 4 else 1 if j < 8 else 2 if j < 18 else 3
+            else:
+                class_number = ""
             if (
                 functional_params
                 and functional_intercept
                 and j < num_plots - num_classes
             ):
-                save_path = f"results/{dataset}/figures/ind_spec_const_{alt_spec_features[j]}_fi{functional_intercept}_fp{functional_params}_{feature_to_highlight}.png"
+                save_path = f"results/{dataset}/figures/ind_spec_const_{alt_spec_features[j]}{class_number}_fi{functional_intercept}_fp{functional_params}_{feature_to_highlight}.png"
             elif (
                 functional_params
                 and functional_intercept
@@ -475,7 +498,7 @@ def plot_ind_spec_constant(
             ):
                 save_path = f"results/{dataset}/figures/ind_spec_const_intercept_{j - len(alt_spec_features)}_fiTrue_fp{functional_params}_{feature_to_highlight}.png"
             elif functional_params and not functional_intercept:
-                save_path = f"results/{dataset}/figures/ind_spec_const_{alt_spec_features[j]}_fi{functional_intercept}_fp{functional_params}_{feature_to_highlight}.png"
+                save_path = f"results/{dataset}/figures/ind_spec_const_{alt_spec_features[j]}{class_number}_fi{functional_intercept}_fp{functional_params}_{feature_to_highlight}.png"
             else:
                 save_path = f"results/{dataset}/figures/ind_spec_const_intercept_{j}_fiTrue_fp{functional_params}_{feature_to_highlight}.png"
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -486,7 +509,7 @@ def plot_ind_spec_constant(
 
 if __name__ == "__main__":
 
-    for dataset in ["LPMC"]:#, "SwissMetro"]:#"easySHARE"]:
+    for dataset in ["easySHARE", "LPMC", "SwissMetro"]:
         all_alt_spec_features = []
         for k, v in alt_spec_features[dataset].items():
             all_alt_spec_features.extend(v)

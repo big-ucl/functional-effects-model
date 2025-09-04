@@ -1,17 +1,18 @@
 \begin{tabular}{lrrrr}
 \toprule
- &  & CEL & Comput. time [s] \\
-Model & Functional effects &  &  \\
+ &  & \multicolumn{2}{r}{SwissMetro} & \multicolumn{2}{r}{LPMC} \\
+ &  & CEL & Comput. time [s] & CEL & Comput. time [s] \\
+Model & Functional effects &  &  &  &  \\
 \midrule
-\multirow[t]{4}{*}{RUMBoost} & Functional intercept and slopes & 0.614 & 9.020 \\
- & Functional slopes only & 0.679 & 7.320 \\
- & Functional intercept only & 0.63 & 1.760 \\
- & No functional effects & 0.787 & 1.710 \\
-\cline{1-4}
-\multirow[t]{4}{*}{TasteNet} & Functional intercept and slopes & 0.67 & 6.040 \\
- & Functional slopes only & 0.72 & 3.040 \\
- & Functional intercept only & 0.779 & 12.180 \\
- & No functional effects & 0.854 & 9.740 \\
-\cline{1-4}
+\multirow[t]{4}{*}{RUMBoost} & Functional intercept and slopes & 0.614 & 9.020 & 0.699 & 15.400 \\
+ & Functional slopes only & 0.679 & 7.320 & 0.724 & 12.870 \\
+ & Functional intercept only & 0.63 & 1.760 & 0.673 & 3.400 \\
+ & No functional effects & 0.786 & 1.540 & 0.824 & 3.360 \\
+\cline{1-6}
+\multirow[t]{4}{*}{TasteNet} & Functional intercept and slopes & 0.67 & 6.040 & 0.691 & 69.190 \\
+ & Functional slopes only & 0.72 & 3.040 & 0.714 & 66.270 \\
+ & Functional intercept only & 0.779 & 12.180 & 0.705 & 52.210 \\
+ & No functional effects & 0.854 & 9.740 & 0.841 & 29.000 \\
+\cline{1-6}
 \bottomrule
 \end{tabular}

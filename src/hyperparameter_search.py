@@ -231,10 +231,10 @@ if __name__ == "__main__":
 
     # set the random seed for reproducibility
     set_all_seeds(42)
-    for dataset in ["LPMC"]:#"SwissMetro", "easySHARE"]: 
-        for model in ["TasteNet", "RUMBoost"]:#"TasteNet"]:#,
-            for func_int in [True, False]: #, False]:#,
-                for func_params in [True, False]: #, False]:
+    for dataset in ["LPMC", "SwissMetro", "easySHARE"]:
+        for model in ["RUMBoost"]:#"TasteNet"]:#,
+            for func_int in [False]: #, False]:#,
+                for func_params in [False]: #, False]:
 
                     objective = partial(
                         objective,
@@ -250,7 +250,7 @@ if __name__ == "__main__":
                     print(
                         f"Starting hyperparameter search on dataset {dataset} for {model} with func params {func_params} and with func intercept {func_int}..."
                     )
-                    study.optimize(objective, n_trials=1, n_jobs=1)
+                    study.optimize(objective, n_trials=100, n_jobs=1)
                     end_time = time.time()
 
                     best_params = study.best_params

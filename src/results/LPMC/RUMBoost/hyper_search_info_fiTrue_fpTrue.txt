@@ -1,0 +1,2 @@
+Best value: 0.6680762767791748
+Optimisation time: 1464.4691004753113
