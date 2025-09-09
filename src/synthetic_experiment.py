@@ -961,9 +961,9 @@ def plot_alt_spec_features(
         # Plot the features
         plt.figure(figsize=(2.62, 1.97), dpi=300)
 
-        plt.plot(x, y_rumboost, label="GBDT", color=colors[2], linewidth=0.8)
+        plt.plot(x, y_rumboost, label="FI-RUMBoost", color=colors[2], linewidth=0.8)
 
-        plt.plot(x, y_tastenet, label="DNN", color=colors[3], linewidth=0.8)
+        plt.plot(x, y_tastenet, label="FI-DNN", color=colors[3], linewidth=0.8)
 
         plt.plot(x, y_true, label="True function", color="black", linewidth=0.8)
 

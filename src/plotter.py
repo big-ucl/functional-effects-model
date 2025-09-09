@@ -204,14 +204,14 @@ def plot_alt_spec_features(
         # Plot the features
         plt.figure(figsize=(2.62, 1.97), dpi=300)
 
-        plt.plot(x, y_rumboost, label="GBDT", color=colors[0], linewidth=0.8)
+        plt.plot(x, y_rumboost, label="RUMBoost", color=colors[0], linewidth=0.8)
         plt.plot(
-            x, y_rumboost_fi, label="GBDT - FI", color=colors[2], linewidth=0.8
+            x, y_rumboost_fi, label="FI-RUMBoost", color=colors[2], linewidth=0.8
         )
 
-        plt.plot(x, y_tastenet, label="DNN", color=colors[1], linewidth=0.8)
+        plt.plot(x, y_tastenet, label="MNL", color=colors[1], linewidth=0.8)
         plt.plot(
-            x, y_tastenet_fi, label="DNN - FI", color=colors[3], linewidth=0.8
+            x, y_tastenet_fi, label="FI-DNN", color=colors[3], linewidth=0.8
         )
         # plt.xlabel(feature_names[as_feat])
         plt.ylabel("Utility")
@@ -524,28 +524,28 @@ if __name__ == "__main__":
             save_fig=True,
             dataset=dataset,
         )
-        plot_ind_spec_constant(
-            all_alt_spec_features,
-            path_to_data=path_to_data,
-            path_to_data_train=path_to_data_train,
-            save_fig=True,
-            dataset=dataset,
-        )
-        plot_ind_spec_constant(
-            all_alt_spec_features,
-            path_to_data=path_to_data,
-            path_to_data_train=path_to_data_train,
-            save_fig=True,
-            functional_params=False,
-            functional_intercept=True,
-            dataset=dataset,
-        )
-        plot_ind_spec_constant(
-            all_alt_spec_features,
-            path_to_data=path_to_data,
-            path_to_data_train=path_to_data_train,
-            save_fig=True,
-            functional_params=True,
-            functional_intercept=False,
-            dataset=dataset,
-        )
+        # plot_ind_spec_constant(
+        #     all_alt_spec_features,
+        #     path_to_data=path_to_data,
+        #     path_to_data_train=path_to_data_train,
+        #     save_fig=True,
+        #     dataset=dataset,
+        # )
+        # plot_ind_spec_constant(
+        #     all_alt_spec_features,
+        #     path_to_data=path_to_data,
+        #     path_to_data_train=path_to_data_train,
+        #     save_fig=True,
+        #     functional_params=False,
+        #     functional_intercept=True,
+        #     dataset=dataset,
+        # )
+        # plot_ind_spec_constant(
+        #     all_alt_spec_features,
+        #     path_to_data=path_to_data,
+        #     path_to_data_train=path_to_data_train,
+        #     save_fig=True,
+        #     functional_params=True,
+        #     functional_intercept=False,
+        #     dataset=dataset,
+        # )
