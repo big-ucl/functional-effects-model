@@ -3,8 +3,8 @@ import numpy as np
 
 for functional_intercept in [False]:#, False]:#, 
     for functional_params in [False]:#, False]:#True, 
-        for dataset in ["easySHARE", "SwissMetro"]: #, "LPMC"]:#, "easySHARE"]:#"]: "SwissMetro", 
-            for model in ["RUMBoost"]:#"TasteNet"]:#, 
+        for dataset in ["LPMC", "SwissMetro"]: #, "LPMC"]:#, "easySHARE"]:#"]: "SwissMetro", 
+            for model in ["GBDT", "DNN"]:#"TasteNet"]:#, "RUMBoost"
 
                 main([
                     "--functional_intercept", str(functional_intercept).lower(),

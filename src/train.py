@@ -14,7 +14,7 @@ from constants import (
     PATH_TO_DATA_VAL,
     alt_spec_features,
 )
-from models_wrapper import RUMBoost, TasteNet
+from models_wrapper import RUMBoost, TasteNet, GBDT, DNN
 from rumboost.datasets import load_preprocess_LPMC
 
 
@@ -180,6 +180,37 @@ def train(args):
             args.outpath
             + f"model_fi{args.functional_intercept}_fp{args.functional_params}.pth"
         )
+    elif args.model == "GBDT":
+        if args.optimal_hyperparams and optimal_hyperparams:
+            args.num_iterations = int(optimal_hyperparams["best_iteration"])
+            if args.num_iterations == 0:
+                args.num_iterations = 3000 #falls back to default
+            args.early_stopping_rounds = None
+        model = GBDT(
+            alt_spec_features=list(set(all_alt_spec_features)),
+            socio_demo_chars=socio_demo_chars,
+            num_classes=num_classes,
+            args=args,
+        )
+        save_path = (
+            args.outpath
+            + f"model_fi{args.functional_intercept}_fp{args.functional_params}.pkl"
+        )
+    elif args.model == "DNN":
+        if args.optimal_hyperparams and optimal_hyperparams:
+            args.num_epochs = int(optimal_hyperparams["best_iteration"])
+            args.patience = args.num_epochs
+        model = DNN(
+            alt_spec_features=list(set(all_alt_spec_features)),
+            socio_demo_chars=socio_demo_chars,
+            num_classes=num_classes,
+            args=args,
+        )
+        save_path = (
+            args.outpath
+            + f"model_fi{args.functional_intercept}_fp{args.functional_params}.pth"
+        )
+
 
     model.build_dataloader(X_train, y_train, X_val, y_val)
 

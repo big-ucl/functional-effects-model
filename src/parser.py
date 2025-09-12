@@ -211,7 +211,7 @@ def parse_cmdline_args(raw_args=None, parser=None):
         type=str,
         default="RUMBoost",
         help="Model to train",
-        choices=["RUMBoost", "ResLogit", "TasteNet"],
+        choices=["RUMBoost", "TasteNet", "GBDT", "DNN", "FixedEffects", "MixedEffects"],
     )
     parser.add_argument(
         "--device",

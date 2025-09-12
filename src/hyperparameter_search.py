@@ -19,7 +19,7 @@ from constants import (
     PATH_TO_FOLDS,
     alt_spec_features,
 )
-from models_wrapper import RUMBoost, TasteNet
+from models_wrapper import RUMBoost, TasteNet, GBDT, DNN
 from parser import parse_cmdline_args
 
 from rumboost.datasets import load_preprocess_LPMC
@@ -187,6 +187,79 @@ def objective(trial, model, func_int, func_params, dataset):
             num_latent_vals=1 if dataset == "easySHARE" else None,
             args=args,
         )
+    elif model == "DNN":
+        dict_args = {
+            "dataset": dataset,
+            "num_epochs": 200,
+            "verbose": 0,
+            "batch_size": trial.suggest_int("batch_size", 256, 512, step=256),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-2, log=True),
+            "patience": 10,
+            "dropout": trial.suggest_float("dropout", 0.0, 0.9),
+            "device": "cuda",
+            "act_func": trial.suggest_categorical(
+                "act_func", ["relu", "tanh", "sigmoid"]
+            ),
+            "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 1, log=True),
+            "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 1, log=True),
+            "batch_norm": trial.suggest_categorical("batch_norm", [True, False]),
+            "layer_sizes": [
+                trial.suggest_categorical(
+                    "layer_sizes",
+                    [
+                        "32",
+                        "64",
+                        "128",
+                        "32, 32",
+                        "64, 64",
+                        "128, 128",
+                        "64, 128",
+                        "128, 64",
+                        "64, 128, 64",
+                    ],
+                ),
+            ],
+        }
+        dict_args["layer_sizes"] = [
+            int(size) for size in dict_args["layer_sizes"][0].split(", ")
+        ]
+        args.__dict__.update(dict_args)
+        model = DNN(
+            alt_spec_features=list(set(all_alt_spec_features)),
+            socio_demo_chars=socio_demo_chars,
+            num_classes=num_classes,
+            args=args,
+        )
+    elif model == "GBDT":
+        dict_args = {
+            "dataset": dataset,
+            "model_type": "coral" if dataset == "easySHARE" else "",
+            "num_iterations": 3000,
+            "early_stopping_rounds": 100,
+            "verbose": -1,
+            "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True),
+            "lambda_l1": trial.suggest_float("lambda_l1", 1e-8, 1.0, log=True),
+            "lambda_l2": trial.suggest_float("lambda_l2", 1e-8, 1.0, log=True),
+            "num_leaves": trial.suggest_int("num_leaves", 2, 256),
+            "feature_fraction": trial.suggest_float("feature_fraction", 0.4, 1.0),
+            "bagging_fraction": trial.suggest_float("bagging_fraction", 0.4, 1.0),
+            "bagging_freq": trial.suggest_int("bagging_freq", 1, 7),
+            "min_data_in_leaf": trial.suggest_int("min_data_in_leaf", 1, 200),
+            "max_bin": trial.suggest_int("max_bin", 64, 511),
+            "min_sum_hessian_in_leaf": trial.suggest_float(
+                "min_sum_hessian_in_leaf", 1e-8, 10.0, log=True
+            ),
+            "min_gain_to_split": trial.suggest_float(
+                "min_gain_to_split", 1e-8, 10.0, log=True
+            ),
+        }
+        args.__dict__.update(dict_args)
+        model = GBDT(
+            alt_spec_features=list(set(all_alt_spec_features)),
+            socio_demo_chars=socio_demo_chars,
+            num_classes=num_classes,
+            args=args,
+        )
 
     avg_val_loss = 0.0
     avg_best_iter = 0.0
@@ -231,8 +304,8 @@ if __name__ == "__main__":
 
     # set the random seed for reproducibility
     set_all_seeds(42)
-    for dataset in ["LPMC", "SwissMetro", "easySHARE"]:
-        for model in ["RUMBoost"]:#"TasteNet"]:#,
+    for dataset in ["LPMC", "SwissMetro"]:#, "easySHARE"]:
+        for model in ["GBDT", "DNN"]: #"RUMBoost", "TasteNet"]:#,
             for func_int in [False]: #, False]:#,
                 for func_params in [False]: #, False]:
 

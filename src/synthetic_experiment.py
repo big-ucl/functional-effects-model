@@ -10,12 +10,13 @@ import argparse
 import gc
 import pickle
 import optuna
+import biogeme.database as db
 
 from functools import partial
 from scipy.special import softmax
 from rumboost.metrics import cross_entropy
 
-from models_wrapper import RUMBoost, TasteNet
+from models_wrapper import RUMBoost, TasteNet, MixedEffect
 from parser import parse_cmdline_args
 
 np.random.seed(0)
@@ -48,6 +49,7 @@ socio_demo_chars = [
 all_models = {
     "RUMBoost": RUMBoost,
     "TasteNet": TasteNet,
+    "MixedEffect": MixedEffect,
 }
 coefficients = [-1, -1, -1, -1]
 
@@ -278,10 +280,11 @@ def add_simulated_choices(data: pd.DataFrame, with_noise: bool = False) -> pd.Da
 
 def gather_functional_intercepts(
     data: pd.DataFrame,
-    model: RUMBoost | TasteNet,
+    model: RUMBoost | TasteNet | MixedEffect,
     socio_demo_characts: list[str] = socio_demo_chars,
     n_classes: int = n_alternatives,
     alt_normalised: int = 0,
+    on_train_set: bool = True,
 ) -> np.ndarray:
     """
     Gather the learnt functional intercepts for the given model.
@@ -298,6 +301,9 @@ def gather_functional_intercepts(
         The number of alternatives (classes) in the model.
     alt_normalised: int, optional (default: 0)
         The alternative index for the normalised functional intercepts.
+    on_train_set: bool, optional (default: True)
+        Whether to compute the functional intercepts on the training set or not.
+        Only used for MixedEffect model.
 
     Returns
     -------
@@ -321,7 +327,7 @@ def gather_functional_intercepts(
         for i, booster in enumerate(model.model.boosters[:-n_classes]):
             asc[0, i] = booster.predict(dummy_array, raw_score=True)
         fct_intercept = fct_intercept + asc
-    else:
+    elif isinstance(model, TasteNet):
         tastenet_predictor = model.model.params_module
         # already computing the functional values as they are outputted all at once
         sdc_tensor = (
@@ -330,6 +336,8 @@ def gather_functional_intercepts(
             .to(torch.float32)
         )
         fct_intercept = tastenet_predictor(sdc_tensor).detach().cpu().numpy().squeeze()
+    else:
+        fct_intercept = model.get_individual_params(on_train_set=on_train_set)
 
     return fct_intercept - fct_intercept[:, alt_normalised].reshape(-1, 1)
 
@@ -420,6 +428,20 @@ def run_experiment(args: argparse.Namespace) -> None:
             args.outpath
             + f"model_fi{args.functional_intercept}_fp{args.functional_params}.pth"
         )
+    elif args.model == "MixedEffect":
+        model = MixedEffect(
+            alt_spec_features=alt_spec_features,
+            socio_demo_chars=socio_demo_chars,
+            num_classes=n_alternatives,
+        )
+        X_train["ID"] = np.repeat(
+            np.arange(int(X_train.shape[0] / panel_factor)), panel_factor
+        )
+
+        save_path = (
+            args.outpath
+            + f"model_fi{args.functional_intercept}_fp{args.functional_params}.pickle"
+        )
 
     # build dataloader
     model.build_dataloader(X_train, y_train, X_val, y_val)
@@ -431,14 +453,17 @@ def run_experiment(args: argparse.Namespace) -> None:
 
     # predict on the test set
     preds, _, _ = model.predict(X_test)
-    loss_test = cross_entropy(preds, y_test)
+    if model == "MixedEffect":
+        loss_test = preds
+    else:
+        loss_test = cross_entropy(preds, y_test)
 
     # get learnt functional intercepts
     learnt_fct_intercepts = gather_functional_intercepts(
-        data_train, model, socio_demo_chars, n_alternatives, alt_normalised=3
+        data_train, model, socio_demo_chars, n_alternatives, alt_normalised=3, on_train_set=True
     )
     learnt_fct_intercepts_test = gather_functional_intercepts(
-        data_test, model, socio_demo_chars, n_alternatives, alt_normalised=3
+        data_test, model, socio_demo_chars, n_alternatives, alt_normalised=3, on_train_set=False
     )
 
     # compute L1 distance between true and learnt functional intercepts
@@ -766,6 +791,23 @@ def plot_ind_spec_constant(
                 y_tastenet = gather_functional_intercepts(
                     df, tastenet, socio_demo_chars, n_alternatives, alt_normalised=3
                 )
+            elif model == "MixedEffect":
+                model_path = f"results/synthetic/{model}/model_fi{functional_intercept}_fp{functional_params}.pickle"
+                mixedeffect = all_models[model]()
+                mixedeffect.load_model(path=model_path)
+                df["ID"] = np.repeat(
+                    np.arange(int(df.shape[0] / panel_factor)), panel_factor
+                )
+                mixedeffect.database = db.Database("synthetic", df)
+                mixedeffect.database.panel("ID")
+                y_mixedeffect = gather_functional_intercepts(
+                    df,
+                    mixedeffect,
+                    socio_demo_chars,
+                    n_alternatives,
+                    alt_normalised=3,
+                    on_train_set=(t == "train"),
+                )
 
         colors = ["#264653", "#2a9d8f", "#0073a1", "#7cd2bf"]
 
@@ -778,6 +820,9 @@ def plot_ind_spec_constant(
             if "TasteNet" in all_models:
                 min_val = min(min_val, y_tastenet[:, j].min())
                 max_val = max(max_val, y_tastenet[:, j].max())
+            if "MixedEffect" in all_models:
+                min_val = min(min_val, y_mixedeffect[:, j].min())
+                max_val = max(max_val, y_mixedeffect[:, j].max())
 
             min_val = min(min_val, true_fct_intercepts[:, j].min())
             max_val = max(max_val, true_fct_intercepts[:, j].max())
@@ -790,6 +835,8 @@ def plot_ind_spec_constant(
                     counts, _ = np.histogram(y_rumboost[:, j], bins=bin_edges)
                 elif model == "TasteNet":
                     counts, _ = np.histogram(y_tastenet[:, j], bins=bin_edges)
+                elif model == "MixedEffect":
+                    counts, _ = np.histogram(y_mixedeffect[:, j], bins=bin_edges)
                 max_count = max(max_count, counts.max())
 
             # sns.histplot(
@@ -853,6 +900,14 @@ def plot_ind_spec_constant(
                         color=colors[i - 1],
                         label=f"DNN (MAE: {l1_distance(true_fct_intercepts[:,j], y_tastenet[:, j])/y_tastenet.shape[0]:.2f})",
                     )
+                elif model == "MixedEffect":
+                    sns.histplot(
+                        y_mixedeffect[:, j],
+                        ax=ax,
+                        bins=bin_edges,
+                        color="#FA8072",
+                        label=f"MixedLogit (MAE: {l1_distance(true_fct_intercepts[:,j], y_mixedeffect[:, j])/y_mixedeffect.shape[0]:.2f})",
+                    )
 
                 if i == 0:
                     ax.set_ylabel("Count")
@@ -909,6 +964,12 @@ def plot_alt_spec_features(
                 tastenet_params_fi = np.concatenate(
                     [tastenet_params_fi, param.detach().cpu().numpy()[0]]
                 )
+        elif model == "MixedEffect":
+            model_path_fi = f"results/synthetic/{model}/model_fiTrue_fpFalse.pickle"
+            mixedeffect_fi = all_models[model]()
+            mixedeffect_fi.load_model(path=model_path_fi)
+            mixedeffect_params_fi = mixedeffect_fi.params
+
     # Plot the features
     tex_fonts = {
         # Use LaTeX to write all text
@@ -953,6 +1014,7 @@ def plot_alt_spec_features(
         dummy_array[:, i] = x
         y_rumboost = rumboost_params_fi[i].predict(dummy_array[:, i].reshape(-1, 1))
         y_tastenet = tastenet_params_fi[i] * x
+        y_mixedeffect = mixedeffect_params_fi[f"beta_{as_feat}_alt{i}"] * x
 
         y_rumboost = [y - y_rumboost[0] for y in y_rumboost]
 
@@ -964,6 +1026,8 @@ def plot_alt_spec_features(
         plt.plot(x, y_rumboost, label="FI-RUMBoost", color=colors[2], linewidth=0.8)
 
         plt.plot(x, y_tastenet, label="FI-DNN", color=colors[3], linewidth=0.8)
+
+        plt.plot(x, y_mixedeffect, label="FI-MixedLogit", color="#FA8072", linewidth=0.8)
 
         plt.plot(x, y_true, label="True function", color="black", linewidth=0.8)
 
@@ -986,38 +1050,39 @@ if __name__ == "__main__":
 
         # load the optimal hyperparameters for the model
         args = parse_cmdline_args()
-        try:
-            opt_hyperparams_path = (
-                f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
-            )
-            with open(opt_hyperparams_path, "rb") as f:
-                optimal_hyperparams = pickle.load(f)
-                if "layer_sizes" in optimal_hyperparams:
-                    optimal_hyperparams["layer_sizes"] = [
-                        int(size)
-                        for size in optimal_hyperparams["layer_sizes"].split(",")
-                    ]
-                if "learning_rate" not in optimal_hyperparams:
-                    optimal_hyperparams["learning_rate"] = 1
-                args.__dict__.update(optimal_hyperparams)
-        except FileNotFoundError:
-            print(
-                f"Optimal hyperparameters not found for {model}. Running hyperparameter search."
-            )
-            hyperparameter_search(model=model)
-            opt_hyperparams_path = (
-                f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
-            )
-            with open(opt_hyperparams_path, "rb") as f:
-                optimal_hyperparams = pickle.load(f)
-                if "layer_sizes" in optimal_hyperparams:
-                    optimal_hyperparams["layer_sizes"] = [
-                        int(size)
-                        for size in optimal_hyperparams["layer_sizes"].split(",")
-                    ]
-                if "learning_rate" not in optimal_hyperparams:
-                    optimal_hyperparams["learning_rate"] = 1
-                args.__dict__.update(optimal_hyperparams)
+        if model != "MixedEffect":
+            try:
+                opt_hyperparams_path = (
+                    f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
+                )
+                with open(opt_hyperparams_path, "rb") as f:
+                    optimal_hyperparams = pickle.load(f)
+                    if "layer_sizes" in optimal_hyperparams:
+                        optimal_hyperparams["layer_sizes"] = [
+                            int(size)
+                            for size in optimal_hyperparams["layer_sizes"].split(",")
+                        ]
+                    if "learning_rate" not in optimal_hyperparams:
+                        optimal_hyperparams["learning_rate"] = 1
+                    args.__dict__.update(optimal_hyperparams)
+            except FileNotFoundError:
+                print(
+                    f"Optimal hyperparameters not found for {model}. Running hyperparameter search."
+                )
+                hyperparameter_search(model=model)
+                opt_hyperparams_path = (
+                    f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
+                )
+                with open(opt_hyperparams_path, "rb") as f:
+                    optimal_hyperparams = pickle.load(f)
+                    if "layer_sizes" in optimal_hyperparams:
+                        optimal_hyperparams["layer_sizes"] = [
+                            int(size)
+                            for size in optimal_hyperparams["layer_sizes"].split(",")
+                        ]
+                    if "learning_rate" not in optimal_hyperparams:
+                        optimal_hyperparams["learning_rate"] = 1
+                    args.__dict__.update(optimal_hyperparams)
         args.functional_intercept = True
         args.functional_params = False
         args.save_model = True
@@ -1025,7 +1090,7 @@ if __name__ == "__main__":
         args.dataset = "synthetic"
         if model == "RUMBoost":
             args.num_iterations = int(args.best_iteration)
-        else:
+        elif model == "TasteNet":
             args.num_epochs = int(args.best_iteration)
         args.early_stopping_rounds = None
         run_experiment(args)
