@@ -18,8 +18,10 @@ from rumboost.metrics import cross_entropy
 
 from models_wrapper import RUMBoost, TasteNet, MixedEffect
 from parser import parse_cmdline_args
+from helper import set_all_seeds
 
-np.random.seed(0)
+#set seed for reproducibility
+set_all_seeds(0)
 
 n_alternatives = 4
 num_observations = 100000
@@ -372,6 +374,9 @@ def run_experiment(args: argparse.Namespace) -> None:
     args: argparse.Namespace
         The command line arguments parsed by the parser.
     """
+    # reset all seeds at the beginning of each experiment for reproducibility
+    set_all_seeds(0)
+    
     args.outpath = f"results/synthetic/{args.model}/"
     os.makedirs(args.outpath, exist_ok=True)
 
@@ -510,6 +515,9 @@ def hyperparameter_search(model: str = "RUMBoost") -> None:
     model : str
         The model to train. Can be "RUMBoost" or "TasteNet".
     """
+    # reset all seeds at the beginning of each experiment for reproducibility
+    set_all_seeds(0)
+    
     # load data
     data_train, _ = create_dataset()
 
@@ -668,7 +676,10 @@ def hyperparameter_search(model: str = "RUMBoost") -> None:
         func_params=func_params,
     )
 
-    study = optuna.create_study(direction="minimize")
+    study = optuna.create_study(
+        direction="minimize", 
+        sampler=optuna.samplers.TPESampler(seed=0)
+    )
 
     start_time = time.time()
     study.optimize(objective, n_trials=100, n_jobs=1)
