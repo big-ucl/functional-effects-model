@@ -20,7 +20,7 @@ from models_wrapper import RUMBoost, TasteNet, MixedEffect
 from parser import parse_cmdline_args
 from helper import set_all_seeds
 
-#set seed for reproducibility
+# set seed for reproducibility
 set_all_seeds(0)
 
 n_alternatives = 4
@@ -49,9 +49,9 @@ socio_demo_chars = [
     "f3",
 ]
 all_models = {
+    "MixedEffect": MixedEffect,
     "RUMBoost": RUMBoost,
     "TasteNet": TasteNet,
-    "MixedEffect": MixedEffect,
 }
 coefficients = [-1, -1, -1, -1]
 
@@ -339,8 +339,11 @@ def gather_functional_intercepts(
         )
         fct_intercept = tastenet_predictor(sdc_tensor).detach().cpu().numpy().squeeze()
     else:
-        fct_intercept = model.get_individual_params(on_train_set=on_train_set)
-
+        fct_intercept = model.get_individual_parameters(on_train_set=on_train_set)
+        if on_train_set:
+            fct_intercept = np.repeat(fct_intercept, panel_factor, axis=0)
+        else:
+            fct_intercept = np.repeat(fct_intercept, panel_factor, axis=0)
     return fct_intercept - fct_intercept[:, alt_normalised].reshape(-1, 1)
 
 
@@ -376,7 +379,7 @@ def run_experiment(args: argparse.Namespace) -> None:
     """
     # reset all seeds at the beginning of each experiment for reproducibility
     set_all_seeds(0)
-    
+
     args.outpath = f"results/synthetic/{args.model}/"
     os.makedirs(args.outpath, exist_ok=True)
 
@@ -442,6 +445,9 @@ def run_experiment(args: argparse.Namespace) -> None:
         X_train["ID"] = np.repeat(
             np.arange(int(X_train.shape[0] / panel_factor)), panel_factor
         )
+        X_test["ID"] = np.repeat(
+            np.arange(int(X_test.shape[0] / panel_factor)), panel_factor
+        )
 
         save_path = (
             args.outpath
@@ -458,17 +464,27 @@ def run_experiment(args: argparse.Namespace) -> None:
 
     # predict on the test set
     preds, _, _ = model.predict(X_test)
-    if model == "MixedEffect":
+    if args.model == "MixedEffect":
         loss_test = preds
     else:
         loss_test = cross_entropy(preds, y_test)
 
     # get learnt functional intercepts
     learnt_fct_intercepts = gather_functional_intercepts(
-        data_train, model, socio_demo_chars, n_alternatives, alt_normalised=3, on_train_set=True
+        data_train,
+        model,
+        socio_demo_chars,
+        n_alternatives,
+        alt_normalised=3,
+        on_train_set=True,
     )
     learnt_fct_intercepts_test = gather_functional_intercepts(
-        data_test, model, socio_demo_chars, n_alternatives, alt_normalised=3, on_train_set=False
+        data_test,
+        model,
+        socio_demo_chars,
+        n_alternatives,
+        alt_normalised=3,
+        on_train_set=False,
     )
 
     # compute L1 distance between true and learnt functional intercepts
@@ -517,7 +533,7 @@ def hyperparameter_search(model: str = "RUMBoost") -> None:
     """
     # reset all seeds at the beginning of each experiment for reproducibility
     set_all_seeds(0)
-    
+
     # load data
     data_train, _ = create_dataset()
 
@@ -649,7 +665,6 @@ def hyperparameter_search(model: str = "RUMBoost") -> None:
                 args=args,
             )
 
-
         # build the dataloader
         model.build_dataloader(X_train, y_train, X_val, y_val)
 
@@ -677,8 +692,7 @@ def hyperparameter_search(model: str = "RUMBoost") -> None:
     )
 
     study = optuna.create_study(
-        direction="minimize", 
-        sampler=optuna.samplers.TPESampler(seed=0)
+        direction="minimize", sampler=optuna.samplers.TPESampler(seed=0)
     )
 
     start_time = time.time()
@@ -877,7 +891,6 @@ def plot_ind_spec_constant(
             # axes.set_ylabel("Count")
             # axes.legend()
 
-
             # xlim = (
             #     min_val - (max_val - min_val) * 0.01,
             #     max_val + (max_val - min_val) * 0.01,
@@ -886,7 +899,12 @@ def plot_ind_spec_constant(
 
             # plt.setp(axes, xlim=xlim, ylim=ylim)
 
-            for i, (model, ax) in enumerate(zip(["True functional intercept"] + list(all_models.keys()), axes.flatten())):
+            for i, (model, ax) in enumerate(
+                zip(
+                    ["True functional intercept"] + list(all_models.keys()),
+                    axes.flatten(),
+                )
+            ):
                 if model == "True functional intercept":
                     sns.histplot(
                         true_fct_intercepts[:, j],
@@ -924,7 +942,6 @@ def plot_ind_spec_constant(
                     ax.set_ylabel("Count")
                 else:
                     ax.set_ylabel("")
-
 
                 xlim = (
                     min_val - (max_val - min_val) * 0.01,
@@ -1038,7 +1055,9 @@ def plot_alt_spec_features(
 
         plt.plot(x, y_tastenet, label="FI-DNN", color=colors[3], linewidth=0.8)
 
-        plt.plot(x, y_mixedeffect, label="FI-MixedLogit", color="#FA8072", linewidth=0.8)
+        plt.plot(
+            x, y_mixedeffect, label="FI-MixedLogit", color="#FA8072", linewidth=0.8
+        )
 
         plt.plot(x, y_true, label="True function", color="black", linewidth=0.8)
 

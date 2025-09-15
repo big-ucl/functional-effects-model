@@ -1,7 +1,14 @@
 import biogeme.database as db
 import biogeme.biogeme as bio
 from biogeme.models import logit
-from biogeme.expressions import Beta, PanelLikelihoodTrajectory, Draws, log, MonteCarlo
+from biogeme.expressions import (
+    Beta,
+    PanelLikelihoodTrajectory,
+    Draws,
+    log,
+    MonteCarlo,
+    Variable,
+)
 import pandas as pd
 
 
@@ -23,20 +30,20 @@ def define_and_return_biogeme(
 
     betas = define_betas(alt_spec_vars)
 
-    CHOICE = database.variables["CHOICE"]
+    CHOICE = Variable("CHOICE")
 
     ascs = {}
 
     for i in range(num_classes):
         ascs[i] = Beta(f"asc_{i}", 0, None, None, i == num_classes - 1) + Beta(
             f"mu_{i}", 1, None, None, i == num_classes - 1
-        ) * Draws("draws", "MLHS")
+        ) * Draws("draws", "NORMAL_MLHS")
 
     V = {}
     for alt_id, vars in alt_spec_vars.items():
         V[alt_id] = (
             sum(
-                betas[f"beta_{var}_alt{alt_id}"] * database.variables[var]
+                betas[f"beta_{var}_alt{alt_id}"] * Variable(var)
                 for var in vars
             )
             + ascs[alt_id]

@@ -938,12 +938,11 @@ class DNN:
 class MixedEffect:
     """Wrapper class for Mixed Effect model."""
 
-    def __init__(self, **kwargs):
-        if "args" in kwargs:
+    def __init__(self, alt_spec_features: dict, socio_demo_chars: list, num_classes: int = 13, **kwargs):
 
-            self.alt_spec_features = kwargs.get("alt_spec_features")
-            self.socio_demo_chars = kwargs.get("socio_demo_chars")
-            self.num_classes = kwargs.get("num_classes", 13)
+        self.alt_spec_features = alt_spec_features
+        self.socio_demo_chars = socio_demo_chars
+        self.num_classes = num_classes
 
     def build_dataloader(
         self,
@@ -991,7 +990,7 @@ class MixedEffect:
         self.results = results
         self.params = results.get_estimated_parameters()
         self.betas = results.get_beta_values()
-        self.loglike = results.data.logLike
+        self.loglike = results.final_log_likelihood
 
         return self.loglike, None
 
@@ -1023,6 +1022,7 @@ class MixedEffect:
         df["CHOICE"] = 1  # placeholder
 
         database = db.Database("test", df)
+        database.panel("ID")
 
         simulated_loglike = calculate_single_formula_from_expression(
             expression=self.log_probability,
@@ -1057,8 +1057,10 @@ class MixedEffect:
         ), "Model not trained yet. Please train the model before getting individual parameters."
 
         if not on_train_set:
-            asc_names = [v for v in self.params.keys() if "asc" in v]
-            return self.params[asc_names]
+            ascs = self.params[self.params["Name"].str.contains("asc_")]["Value"]
+            ascs = np.append(ascs, 0.0)  # last class asc is 0
+            print(ascs)
+            return ascs
 
         simulate = {}
         for i, asc in enumerate(self.ascs):
