@@ -1,15 +1,18 @@
+from fileinput import filename
 import torch
-import pickle
 import pandas as pd
 import lightgbm as lgb
 import numpy as np
 import copy
+import os
+from pathlib import Path
 from torch.utils.data import DataLoader
 from biogeme.calculator.single_formula import calculate_single_formula_from_expression
 from biogeme.second_derivatives import SecondDerivativesMode
 from biogeme.expressions import MonteCarlo
 import biogeme.database as db
 import biogeme.biogeme as bio
+from biogeme.results_processing import EstimationResults
 
 from utils import (
     generate_general_params,
@@ -176,7 +179,7 @@ class RUMBoost:
                 y_valid,
             )
 
-    def fit(self):
+    def fit(self, **kwargs) -> tuple[float, float] | tuple[float, None]:
         """
         Fits the model to the training data.
         """
@@ -192,7 +195,7 @@ class RUMBoost:
 
         return self.model.best_score_train, self.model.best_score
 
-    def predict(self, X_test: pd.DataFrame, utilities: bool = False) -> np.array:
+    def predict(self, X_test: pd.DataFrame, utilities: bool = False, **kwargs) -> np.array:
         """ "
         Predicts the target variable for the test set."
 
@@ -203,6 +206,8 @@ class RUMBoost:
         utilities : bool
             Whether to predict utilities or probabilities.
             If True, returns raw utility values.
+        kwargs : dict
+            Additional arguments.
 
         Returns
         -------
@@ -366,7 +371,7 @@ class TasteNet:
             self.valid_dataloader = None
             self.valid_dataset = None
 
-    def fit(self):
+    def fit(self, **kwargs) -> tuple[float, float] | tuple[float, None]:
         """
         Fits the model to the training data.
         """
@@ -452,6 +457,9 @@ class TasteNet:
         if hasattr(self, "best_model"):
             self.model = self.best_model
 
+        if best_loss == 1e10:
+            best_loss = train_loss
+
         return best_loss, best_val_loss
 
     def save_model(self, path: str):
@@ -477,7 +485,7 @@ class TasteNet:
         self.model = torch.load(path, weights_only=False)
         self.model.eval()
 
-    def predict(self, X_test: pd.DataFrame, utilities: bool = False) -> np.array:
+    def predict(self, X_test: pd.DataFrame, utilities: bool = False, **kwargs) -> np.array:
         """
         Predicts the target variable for the test set.
 
@@ -487,6 +495,8 @@ class TasteNet:
             Test set.
         utilities : bool
             Whether to predict utilities or not.
+        kwargs : dict
+            Additional arguments.
 
         Returns
         -------
@@ -595,7 +605,7 @@ class GBDT:
             self.X_valid = X_valid[self.features]
             self.y_valid = y_valid
 
-    def fit(self):
+    def fit(self, **kwargs) -> tuple[float, float] | tuple[float, None]:
         """
         Fits the model to the training data.
         """
@@ -620,7 +630,7 @@ class GBDT:
 
         return best_score_train, best_score_valid
 
-    def predict(self, X_test: pd.DataFrame, utilities: bool = False) -> np.array:
+    def predict(self, X_test: pd.DataFrame, utilities: bool = False, **kwargs) -> np.array:
         """ "
         Predicts the target variable for the test set."
 
@@ -631,6 +641,8 @@ class GBDT:
         utilities : bool
             Whether to predict utilities or probabilities.
             If True, returns raw utility values.
+        kwargs : dict
+            Additional arguments.
 
         Returns
         -------
@@ -772,7 +784,7 @@ class DNN:
             self.valid_dataloader = None
             self.valid_dataset = None
 
-    def fit(self):
+    def fit(self, **kwargs) -> tuple[float, float] | tuple[float, None]:
         """
         Fits the model to the training data.
         """
@@ -882,7 +894,7 @@ class DNN:
         self.model = torch.load(path, weights_only=False)
         self.model.eval()
 
-    def predict(self, X_test: pd.DataFrame, utilities: bool = False) -> np.array:
+    def predict(self, X_test: pd.DataFrame, utilities: bool = False, **kwargs) -> np.array:
         """
         Predicts the target variable for the test set.
 
@@ -892,6 +904,8 @@ class DNN:
             Test set.
         utilities : bool
             Whether to predict utilities or not.
+        kwargs : dict
+            Additional arguments.
 
         Returns
         -------
@@ -979,7 +993,7 @@ class MixedEffect:
             self.database,
         ) = define_and_return_biogeme(df, self.alt_spec_features, self.num_classes)
 
-    def fit(self) -> tuple[float, None]:
+    def fit(self, **kwargs) -> tuple[float, None]:
         """
         Fits the model to the training data.
         """
@@ -987,7 +1001,15 @@ class MixedEffect:
             self, "model"
         ), "Dataloader not built yet. Please build the dataloader before fitting the model."
 
+        if "save_path" in kwargs:
+            cwd = os.getcwd()
+            path = Path(kwargs.get("save_path", "")).parent
+            os.chdir(path)
+
         results = self.model.estimate()
+
+        if "save_path" in kwargs:
+            os.chdir(cwd)
 
         self.results = results
         self.params = results.get_estimated_parameters()
@@ -996,7 +1018,7 @@ class MixedEffect:
 
         return - self.loglike / self.n_obs, None
 
-    def predict(self, X_test: pd.DataFrame, utilities: bool = False) -> np.array:
+    def predict(self, X_test: pd.DataFrame, utilities: bool = False, **kwargs) -> np.array:
         """
         Predicts the target variable for the test set.
 
@@ -1006,6 +1028,9 @@ class MixedEffect:
             Test set.
         utilities : bool
             Whether to predict utilities or not.
+        kwargs : dict
+            Additional arguments.
+        
 
         Returns
         -------
@@ -1021,7 +1046,7 @@ class MixedEffect:
         ), "Model not trained yet. Please train the model before predicting."
 
         df = X_test.copy()
-        df["CHOICE"] = 1  # placeholder
+        df["CHOICE"] = kwargs.get("y_test", 1)  # placeholder
 
         database = db.Database("test", df)
         database.panel("ID")
@@ -1036,11 +1061,11 @@ class MixedEffect:
             use_jit=True,
         )
 
-        cel = - simulated_loglike / df.shape[0]
+        cel = - simulated_loglike / X_test.shape[0]
 
         return cel, None, None
 
-    def get_individual_parameters(self, on_train_set: bool) -> pd.DataFrame:
+    def get_individual_parameters(self, on_train_set: bool) -> np.array:
         """
         Returns the individual-specific parameters.
 
@@ -1058,13 +1083,14 @@ class MixedEffect:
             self, "results"
         ), "Model not trained yet. Please train the model before getting individual parameters."
 
+
         if not on_train_set:
-            ascs = self.params[self.params["Name"].str.contains("asc_")]["Value"]
-            ascs = np.append(ascs, 0.0)  # last asc is 0
-            return ascs
+            ascs = self.params[self.params["Name"].str.contains("asc_")]["Value"].values.tolist()
+            ascs.append(0.0)  # last asc is 0
+            return np.array(ascs)
 
         simulate = {}
-        for i, asc in enumerate(self.ascs):
+        for i, asc in self.ascs.items():
             if i != self.num_classes - 1:
                 simulate["Numerator_" + str(i)] = MonteCarlo(
                     asc * self.conditional_trajectory_probability
@@ -1077,15 +1103,15 @@ class MixedEffect:
 
         sim = biosim.simulate(self.results.get_beta_values())
 
-        individual_params = pd.DataFrame()
+        individual_params = np.zeros((10000, self.num_classes))
         for i, _ in enumerate(self.ascs):
             if i != self.num_classes - 1:
-                individual_params["asc_" + str(i)] = sim["Numerator_" + str(i)] / sim["Denominator_" + str(i)]
+                individual_params[:, i] = sim["Numerator_" + str(i)] / sim["Denominator_" + str(i)]
             else:
-                individual_params["asc_" + str(i)] = 0.0
+                individual_params[:, i] = 0.0
 
-        return individual_params.values
-    
+        return individual_params
+
     def save_model(self, path: str) -> None:
         """
         Saves the model to the specified path.
@@ -1098,10 +1124,14 @@ class MixedEffect:
         assert hasattr(
             self, "results"
         ), "Model not trained yet. Please train the model before saving."
-        with open(path, "wb") as f:
-            pickle.dump(self.results, f)
+        path_folder = Path(path).parent
+        filename = Path(path).name
+        current_dir = os.getcwd()
+        os.chdir(path_folder)
+        self.results.dump_yaml_file(filename=str(filename))
+        os.chdir(current_dir)
 
-    def load_model(self, path: str) -> None:
+    def load_model(self, path: str, **kwargs) -> None:
         """
         Loads the model from the specified path.
 
@@ -1109,9 +1139,19 @@ class MixedEffect:
         ----------
         path : str
             Path to load the model from.
+        kwargs : dict
+            Additional arguments, including:
+            - alt_spec_features: dict[int, list[str]]
+                Dictionary mapping alternative IDs to lists of variable names.
+            - socio_demo_chars: list[str]
+                List of socio-demographic characteristic names.
+            - num_classes: int
+                Number of classes.
         """
-        with open(path, "rb") as f:
-            self.results = pickle.load(f)
+        self.results = EstimationResults.from_yaml_file(path)
         self.params = self.results.get_estimated_parameters()
         self.betas = self.results.get_beta_values()
         self.loglike = self.results.final_log_likelihood
+        self.alt_spec_features = kwargs.get("alt_spec_features", {})
+        self.socio_demo_chars = kwargs.get("socio_demo_chars", [])
+        self.num_classes = kwargs.get("num_classes", 13)

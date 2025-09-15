@@ -49,9 +49,9 @@ socio_demo_chars = [
     "f3",
 ]
 all_models = {
-    "MixedEffect": MixedEffect,
     "RUMBoost": RUMBoost,
     "TasteNet": TasteNet,
+    "MixedEffect": MixedEffect,
 }
 coefficients = [-1, -1, -1, -1]
 
@@ -451,7 +451,7 @@ def run_experiment(args: argparse.Namespace) -> None:
 
         save_path = (
             args.outpath
-            + f"model_fi{args.functional_intercept}_fp{args.functional_params}.pickle"
+            + f"model_fi{args.functional_intercept}_fp{args.functional_params}.yaml"
         )
 
     # build dataloader
@@ -459,14 +459,15 @@ def run_experiment(args: argparse.Namespace) -> None:
 
     # fit model
     start_time = time.time()
-    best_train_loss, best_val_loss = model.fit()
+    best_train_loss, best_val_loss = model.fit(save_path=save_path)
     end_time = time.time()
 
     # predict on the test set
-    preds, _, _ = model.predict(X_test)
+
     if args.model == "MixedEffect":
-        loss_test = preds
+        loss_test, _, _ = model.predict(X_test, y_test=y_test)
     else:
+        preds, _, _ = model.predict(X_test)
         loss_test = cross_entropy(preds, y_test)
 
     # get learnt functional intercepts
@@ -497,6 +498,11 @@ def run_experiment(args: argparse.Namespace) -> None:
         learnt_fct_intercepts_test,
     )
 
+    mean_fct_intercept = np.mean(fct_intercept, axis=0)
+    mean_learnt_fct_intercept = np.mean(learnt_fct_intercepts, axis=0)
+    mean_fct_intercept_test = np.mean(fct_intercept_test, axis=0)
+    mean_learnt_fct_intercept_test = np.mean(learnt_fct_intercepts_test, axis=0)
+
     print(f"Best Train Loss: {best_train_loss}, Best Val Loss: {best_val_loss}")
     print(f"Test Loss: {loss_test}")
 
@@ -505,6 +511,22 @@ def run_experiment(args: argparse.Namespace) -> None:
         "val_loss": best_val_loss,
         "loss_test": loss_test,
         "train_time": end_time - start_time,
+        "mean_fct_intercept_class_0": mean_fct_intercept[0],
+        "mean_fct_intercept_class_1": mean_fct_intercept[1],
+        "mean_fct_intercept_class_2": mean_fct_intercept[2],
+        "mean_fct_intercept_class_3": mean_fct_intercept[3],
+        "mean_learnt_fct_intercept_class_0": mean_learnt_fct_intercept[0],
+        "mean_learnt_fct_intercept_class_1": mean_learnt_fct_intercept[1],
+        "mean_learnt_fct_intercept_class_2": mean_learnt_fct_intercept[2],
+        "mean_learnt_fct_intercept_class_3": mean_learnt_fct_intercept[3],
+        "mean_fct_intercept_test_class_0": mean_fct_intercept_test[0],
+        "mean_fct_intercept_test_class_1": mean_fct_intercept_test[1],
+        "mean_fct_intercept_test_class_2": mean_fct_intercept_test[2],
+        "mean_fct_intercept_test_class_3": mean_fct_intercept_test[3],
+        "mean_learnt_fct_intercept_test_class_0": mean_learnt_fct_intercept_test[0],
+        "mean_learnt_fct_intercept_test_class_1": mean_learnt_fct_intercept_test[1],
+        "mean_learnt_fct_intercept_test_class_2": mean_learnt_fct_intercept_test[2],
+        "mean_learnt_fct_intercept_test_class_3": mean_learnt_fct_intercept_test[3],
     }
 
     for i in range(n_alternatives):
@@ -817,14 +839,14 @@ def plot_ind_spec_constant(
                     df, tastenet, socio_demo_chars, n_alternatives, alt_normalised=3
                 )
             elif model == "MixedEffect":
-                model_path = f"results/synthetic/{model}/model_fi{functional_intercept}_fp{functional_params}.pickle"
+                model_path = f"results/synthetic/{model}/model_fi{functional_intercept}_fp{functional_params}.yaml"
                 mixedeffect = all_models[model]()
-                mixedeffect.load_model(path=model_path)
+                mixedeffect.load_model(path=model_path, alt_spec_features=alt_spec_features, socio_demo_chars=socio_demo_chars, num_classes=n_alternatives)
                 df["ID"] = np.repeat(
                     np.arange(int(df.shape[0] / panel_factor)), panel_factor
                 )
-                mixedeffect.database = db.Database("synthetic", df)
-                mixedeffect.database.panel("ID")
+                mixedeffect.build_dataloader(df, pd.Series(np.random.randint(low=0, high=4, size=df.shape[0])), None, None)
+
                 y_mixedeffect = gather_functional_intercepts(
                     df,
                     mixedeffect,
@@ -837,7 +859,7 @@ def plot_ind_spec_constant(
         colors = ["#264653", "#2a9d8f", "#0073a1", "#7cd2bf"]
 
         for j in range(num_plots):
-            fig, axes = plt.subplots(1, 3, figsize=(8, 2), dpi=300)
+            fig, axes = plt.subplots(1, 4, figsize=(10, 2), dpi=300)
             # fig, axes = plt.subplots(1, 1, figsize=(8, 6), dpi=300)
             if "RUMBoost" in all_models:
                 min_val = y_rumboost[:, j].min()
@@ -861,7 +883,7 @@ def plot_ind_spec_constant(
                 elif model == "TasteNet":
                     counts, _ = np.histogram(y_tastenet[:, j], bins=bin_edges)
                 elif model == "MixedEffect":
-                    counts, _ = np.histogram(y_mixedeffect[:, j], bins=bin_edges)
+                    counts, _ = max_count, None
                 max_count = max(max_count, counts.max())
 
             # sns.histplot(
@@ -934,7 +956,7 @@ def plot_ind_spec_constant(
                         y_mixedeffect[:, j],
                         ax=ax,
                         bins=bin_edges,
-                        color="#FA8072",
+                        color="#B35733",
                         label=f"MixedLogit (MAE: {l1_distance(true_fct_intercepts[:,j], y_mixedeffect[:, j])/y_mixedeffect.shape[0]:.2f})",
                     )
 
@@ -993,7 +1015,7 @@ def plot_alt_spec_features(
                     [tastenet_params_fi, param.detach().cpu().numpy()[0]]
                 )
         elif model == "MixedEffect":
-            model_path_fi = f"results/synthetic/{model}/model_fiTrue_fpFalse.pickle"
+            model_path_fi = f"results/synthetic/{model}/model_fiTrue_fpFalse.yaml"
             mixedeffect_fi = all_models[model]()
             mixedeffect_fi.load_model(path=model_path_fi)
             mixedeffect_params_fi = mixedeffect_fi.params
@@ -1042,7 +1064,7 @@ def plot_alt_spec_features(
         dummy_array[:, i] = x
         y_rumboost = rumboost_params_fi[i].predict(dummy_array[:, i].reshape(-1, 1))
         y_tastenet = tastenet_params_fi[i] * x
-        y_mixedeffect = mixedeffect_params_fi[mixedeffect_params_fi["Name"] == f"beta_{as_feat}_alt{i}"]["Value"][0] * x
+        y_mixedeffect = mixedeffect_params_fi[mixedeffect_params_fi["Name"] == f"beta_{as_feat}_alt{i}"]["Value"].values * x
 
         y_rumboost = [y - y_rumboost[0] for y in y_rumboost]
 
@@ -1056,7 +1078,7 @@ def plot_alt_spec_features(
         plt.plot(x, y_tastenet, label="FI-DNN", color=colors[3], linewidth=0.8)
 
         plt.plot(
-            x, y_mixedeffect, label="FI-MixedLogit", color="#FA8072", linewidth=0.8
+            x, y_mixedeffect, label="MixedLogit", color="#B35733", linewidth=0.8
         )
 
         plt.plot(x, y_true, label="True function", color="black", linewidth=0.8)
