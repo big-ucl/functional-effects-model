@@ -938,11 +938,11 @@ class DNN:
 class MixedEffect:
     """Wrapper class for Mixed Effect model."""
 
-    def __init__(self, alt_spec_features: dict, socio_demo_chars: list, num_classes: int = 13, **kwargs):
+    def __init__(self, **kwargs):
 
-        self.alt_spec_features = alt_spec_features
-        self.socio_demo_chars = socio_demo_chars
-        self.num_classes = num_classes
+        self.alt_spec_features = kwargs.get("alt_spec_features", {})
+        self.socio_demo_chars = kwargs.get("socio_demo_chars", [])
+        self.num_classes = kwargs.get("num_classes", 13)
 
     def build_dataloader(
         self,
@@ -969,6 +969,8 @@ class MixedEffect:
         df = X_train.copy()
         df["CHOICE"] = y_train.values
 
+        self.n_obs = df.shape[0]
+
         (
             self.model,
             self.log_probability,
@@ -992,7 +994,7 @@ class MixedEffect:
         self.betas = results.get_beta_values()
         self.loglike = results.final_log_likelihood
 
-        return self.loglike, None
+        return - self.loglike / self.n_obs, None
 
     def predict(self, X_test: pd.DataFrame, utilities: bool = False) -> np.array:
         """
@@ -1034,7 +1036,7 @@ class MixedEffect:
             use_jit=True,
         )
 
-        cel = simulated_loglike / df.shape[0]
+        cel = - simulated_loglike / df.shape[0]
 
         return cel, None, None
 
@@ -1058,8 +1060,7 @@ class MixedEffect:
 
         if not on_train_set:
             ascs = self.params[self.params["Name"].str.contains("asc_")]["Value"]
-            ascs = np.append(ascs, 0.0)  # last class asc is 0
-            print(ascs)
+            ascs = np.append(ascs, 0.0)  # last asc is 0
             return ascs
 
         simulate = {}
@@ -1113,4 +1114,4 @@ class MixedEffect:
             self.results = pickle.load(f)
         self.params = self.results.get_estimated_parameters()
         self.betas = self.results.get_beta_values()
-        self.loglike = self.results.data.logLike
+        self.loglike = self.results.final_log_likelihood

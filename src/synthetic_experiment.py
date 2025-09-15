@@ -343,7 +343,7 @@ def gather_functional_intercepts(
         if on_train_set:
             fct_intercept = np.repeat(fct_intercept, panel_factor, axis=0)
         else:
-            fct_intercept = np.repeat(fct_intercept, panel_factor, axis=0)
+            fct_intercept = np.repeat(fct_intercept.reshape(1, -1), num_observations * 0.2, axis=0)
     return fct_intercept - fct_intercept[:, alt_normalised].reshape(-1, 1)
 
 
@@ -1042,7 +1042,7 @@ def plot_alt_spec_features(
         dummy_array[:, i] = x
         y_rumboost = rumboost_params_fi[i].predict(dummy_array[:, i].reshape(-1, 1))
         y_tastenet = tastenet_params_fi[i] * x
-        y_mixedeffect = mixedeffect_params_fi[f"beta_{as_feat}_alt{i}"] * x
+        y_mixedeffect = mixedeffect_params_fi[mixedeffect_params_fi["Name"] == f"beta_{as_feat}_alt{i}"]["Value"][0] * x
 
         y_rumboost = [y - y_rumboost[0] for y in y_rumboost]
 
