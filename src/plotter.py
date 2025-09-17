@@ -208,8 +208,8 @@ def plot_alt_spec_features(
         plt.plot(
             x, y_rumboost_fi, label="FI-RUMBoost", color=colors[2], linewidth=0.8
         )
-
-        plt.plot(x, y_tastenet, label="MNL", color=colors[1], linewidth=0.8)
+        label_linear = "Ordinal Logit" if dataset == "easySHARE" else "MNL"
+        plt.plot(x, y_tastenet, label=label_linear, color=colors[1], linewidth=0.8)
         plt.plot(
             x, y_tastenet_fi, label="FI-DNN", color=colors[3], linewidth=0.8
         )
@@ -509,7 +509,7 @@ def plot_ind_spec_constant(
 
 if __name__ == "__main__":
 
-    for dataset in ["easySHARE", "LPMC", "SwissMetro"]:
+    for dataset in ["easySHARE"]: #, "LPMC", "SwissMetro"
         all_alt_spec_features = []
         for k, v in alt_spec_features[dataset].items():
             all_alt_spec_features.extend(v)
