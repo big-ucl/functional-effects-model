@@ -524,28 +524,28 @@ if __name__ == "__main__":
             save_fig=True,
             dataset=dataset,
         )
-        # plot_ind_spec_constant(
-        #     all_alt_spec_features,
-        #     path_to_data=path_to_data,
-        #     path_to_data_train=path_to_data_train,
-        #     save_fig=True,
-        #     dataset=dataset,
-        # )
-        # plot_ind_spec_constant(
-        #     all_alt_spec_features,
-        #     path_to_data=path_to_data,
-        #     path_to_data_train=path_to_data_train,
-        #     save_fig=True,
-        #     functional_params=False,
-        #     functional_intercept=True,
-        #     dataset=dataset,
-        # )
-        # plot_ind_spec_constant(
-        #     all_alt_spec_features,
-        #     path_to_data=path_to_data,
-        #     path_to_data_train=path_to_data_train,
-        #     save_fig=True,
-        #     functional_params=True,
-        #     functional_intercept=False,
-        #     dataset=dataset,
-        # )
+        plot_ind_spec_constant(
+            all_alt_spec_features,
+            path_to_data=path_to_data,
+            path_to_data_train=path_to_data_train,
+            save_fig=True,
+            dataset=dataset,
+        )
+        plot_ind_spec_constant(
+            all_alt_spec_features,
+            path_to_data=path_to_data,
+            path_to_data_train=path_to_data_train,
+            save_fig=True,
+            functional_params=False,
+            functional_intercept=True,
+            dataset=dataset,
+        )
+        plot_ind_spec_constant(
+            all_alt_spec_features,
+            path_to_data=path_to_data,
+            path_to_data_train=path_to_data_train,
+            save_fig=True,
+            functional_params=True,
+            functional_intercept=False,
+            dataset=dataset,
+        )

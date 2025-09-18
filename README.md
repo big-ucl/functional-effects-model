@@ -1,18 +1,13 @@
-A repository to evaluate RUMBoost on panel dataset. Specifically, we learn individual-specific constants from the socio-demographic data to effectively output a panel RUMBoost model.
+# Functional effects models: Accounting for preference heterogeneity in panel data with machine learning
 
+Repository related to our paper on functional effects where we learn individual-specific intercepts and coefficients from the socio-demographic characteristics to account for inter-individual heterogeneity in panel data.
 
-MODELS TODO:
+The case studies can be reproduced by running the [run_models.py](src/run_models.py) script, with correct arguments and dataset in the data folder.
 
-baseline: MNL with only AS variables
+The hyperparameter search can be reproduced by running the [hyperparameter_search.py](src/hyperparameter_search.py) python script.
 
-Random intercept: to mention in the literature
+The synthetic experiment can be reproduced by running the [synthetic_experiment.py](src/synthetic_experiment.py) python script.
 
-Functional intercept: Done for RUMBoost, hyperparameter search for TasteNet-MNL / LMNL
+The easySHare dataset pre-processing can be done by running the [data_preprocessing.ipynb](src/data_preprocessing.ipynb) jupyter notebook.
 
-Random rslope model: literature
-
-Functional slope model: Rumboost with same idea than heart, TasteNet-MNL
-
-Potentially model with both?
-
-
+Finally, [models_wrapper.py](src/models_wrapper.py) contains all models wrapped in consistent classes from their source code.
