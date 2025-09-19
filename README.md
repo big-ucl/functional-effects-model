@@ -1,8 +1,11 @@
 # Functional effects models: Accounting for preference heterogeneity in panel data with machine learning
+<p float="left">
+  <img src="diagram_a.png" width="300" height="150">
+  <img src="diagram_b.png" width="300" height="150">
+  <img src="diagram_c.png" width="605" height="200">
+</p>
 
-<img src="diagram_a.png" width="300" height="150">
-<img src="diagram_b.png" width="300" height="150">
-<img src="diagram_c.png" width="605" height="200">
+
 
 Repository related to our paper on functional effects where we learn individual-specific intercepts and coefficients from the socio-demographic characteristics to account for inter-individual heterogeneity in panel data.
 
