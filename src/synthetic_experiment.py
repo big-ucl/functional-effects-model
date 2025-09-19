@@ -868,8 +868,8 @@ def plot_ind_spec_constant(
                 min_val = min(min_val, y_tastenet[:, j].min())
                 max_val = max(max_val, y_tastenet[:, j].max())
             if "MixedEffect" in all_models:
-                min_val = min(min_val, y_mixedeffect[:, j].min())
-                max_val = max(max_val, y_mixedeffect[:, j].max())
+                min_val = min_val #truncated for visibility
+                max_val = max_val #truncated for visibility
 
             min_val = min(min_val, true_fct_intercepts[:, j].min())
             max_val = max(max_val, true_fct_intercepts[:, j].max())
@@ -883,7 +883,7 @@ def plot_ind_spec_constant(
                 elif model == "TasteNet":
                     counts, _ = np.histogram(y_tastenet[:, j], bins=bin_edges)
                 elif model == "MixedEffect":
-                    counts, _ = max_count, None
+                    counts, _ = max_count, None #truncated for visibility
                 max_count = max(max_count, counts.max())
 
             # sns.histplot(
@@ -933,7 +933,7 @@ def plot_ind_spec_constant(
                         ax=ax,
                         bins=bin_edges,
                         color="black",
-                        label="True functional intercept",
+                        label="Ground truth",
                     )
                 elif model == "RUMBoost":
                     sns.histplot(
@@ -941,7 +941,7 @@ def plot_ind_spec_constant(
                         ax=ax,
                         bins=bin_edges,
                         color=colors[i - 1],
-                        label=f"GBDT (MAE: {l1_distance(true_fct_intercepts[:,j], y_rumboost[:, j])/y_rumboost.shape[0]:.2f})",
+                        label=f"FI-RUMBoost",
                     )
                 elif model == "TasteNet":
                     sns.histplot(
@@ -949,7 +949,7 @@ def plot_ind_spec_constant(
                         ax=ax,
                         bins=bin_edges,
                         color=colors[i - 1],
-                        label=f"DNN (MAE: {l1_distance(true_fct_intercepts[:,j], y_tastenet[:, j])/y_tastenet.shape[0]:.2f})",
+                        label=f"FI-DNN",
                     )
                 elif model == "MixedEffect":
                     sns.histplot(
@@ -957,7 +957,7 @@ def plot_ind_spec_constant(
                         ax=ax,
                         bins=bin_edges,
                         color="#B35733",
-                        label=f"MixedLogit (MAE: {l1_distance(true_fct_intercepts[:,j], y_mixedeffect[:, j])/y_mixedeffect.shape[0]:.2f})",
+                        label=f"Random intercept",
                     )
 
                 if i == 0:
@@ -1078,10 +1078,10 @@ def plot_alt_spec_features(
         plt.plot(x, y_tastenet, label="FI-DNN", color=colors[3], linewidth=0.8)
 
         plt.plot(
-            x, y_mixedeffect, label="MixedLogit", color="#B35733", linewidth=0.8
+            x, y_mixedeffect, label="Random intercept", color="#B35733", linewidth=0.8
         )
 
-        plt.plot(x, y_true, label="True function", color="black", linewidth=0.8)
+        plt.plot(x, y_true, label="Ground truth", color="black", linewidth=0.8)
 
         # plt.xlabel(feature_names[as_feat])
         plt.ylabel("Utility")
@@ -1096,56 +1096,56 @@ def plot_alt_spec_features(
 
 if __name__ == "__main__":
 
-    for model in all_models.keys():
-        # run hyperparameter search
-        # hyperparameter_search(model=model)
+    # for model in all_models.keys():
+    #     # run hyperparameter search
+    #     # hyperparameter_search(model=model)
 
-        # load the optimal hyperparameters for the model
-        args = parse_cmdline_args()
-        if model != "MixedEffect":
-            try:
-                opt_hyperparams_path = (
-                    f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
-                )
-                with open(opt_hyperparams_path, "rb") as f:
-                    optimal_hyperparams = pickle.load(f)
-                    if "layer_sizes" in optimal_hyperparams:
-                        optimal_hyperparams["layer_sizes"] = [
-                            int(size)
-                            for size in optimal_hyperparams["layer_sizes"].split(",")
-                        ]
-                    if "learning_rate" not in optimal_hyperparams:
-                        optimal_hyperparams["learning_rate"] = 1
-                    args.__dict__.update(optimal_hyperparams)
-            except FileNotFoundError:
-                print(
-                    f"Optimal hyperparameters not found for {model}. Running hyperparameter search."
-                )
-                hyperparameter_search(model=model)
-                opt_hyperparams_path = (
-                    f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
-                )
-                with open(opt_hyperparams_path, "rb") as f:
-                    optimal_hyperparams = pickle.load(f)
-                    if "layer_sizes" in optimal_hyperparams:
-                        optimal_hyperparams["layer_sizes"] = [
-                            int(size)
-                            for size in optimal_hyperparams["layer_sizes"].split(",")
-                        ]
-                    if "learning_rate" not in optimal_hyperparams:
-                        optimal_hyperparams["learning_rate"] = 1
-                    args.__dict__.update(optimal_hyperparams)
-        args.functional_intercept = True
-        args.functional_params = False
-        args.save_model = True
-        args.model = model
-        args.dataset = "synthetic"
-        if model == "RUMBoost":
-            args.num_iterations = int(args.best_iteration)
-        elif model == "TasteNet":
-            args.num_epochs = int(args.best_iteration)
-        args.early_stopping_rounds = None
-        run_experiment(args)
+    #     # load the optimal hyperparameters for the model
+    #     args = parse_cmdline_args()
+    #     if model != "MixedEffect":
+    #         try:
+    #             opt_hyperparams_path = (
+    #                 f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
+    #             )
+    #             with open(opt_hyperparams_path, "rb") as f:
+    #                 optimal_hyperparams = pickle.load(f)
+    #                 if "layer_sizes" in optimal_hyperparams:
+    #                     optimal_hyperparams["layer_sizes"] = [
+    #                         int(size)
+    #                         for size in optimal_hyperparams["layer_sizes"].split(",")
+    #                     ]
+    #                 if "learning_rate" not in optimal_hyperparams:
+    #                     optimal_hyperparams["learning_rate"] = 1
+    #                 args.__dict__.update(optimal_hyperparams)
+    #         except FileNotFoundError:
+    #             print(
+    #                 f"Optimal hyperparameters not found for {model}. Running hyperparameter search."
+    #             )
+    #             hyperparameter_search(model=model)
+    #             opt_hyperparams_path = (
+    #                 f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
+    #             )
+    #             with open(opt_hyperparams_path, "rb") as f:
+    #                 optimal_hyperparams = pickle.load(f)
+    #                 if "layer_sizes" in optimal_hyperparams:
+    #                     optimal_hyperparams["layer_sizes"] = [
+    #                         int(size)
+    #                         for size in optimal_hyperparams["layer_sizes"].split(",")
+    #                     ]
+    #                 if "learning_rate" not in optimal_hyperparams:
+    #                     optimal_hyperparams["learning_rate"] = 1
+    #                 args.__dict__.update(optimal_hyperparams)
+    #     args.functional_intercept = True
+    #     args.functional_params = False
+    #     args.save_model = True
+    #     args.model = model
+    #     args.dataset = "synthetic"
+    #     if model == "RUMBoost":
+    #         args.num_iterations = int(args.best_iteration)
+    #     elif model == "TasteNet":
+    #         args.num_epochs = int(args.best_iteration)
+    #     args.early_stopping_rounds = None
+    #     run_experiment(args)
 
     plot_ind_spec_constant()
     plot_alt_spec_features(["f4", "f5", "f6", "f7"])
