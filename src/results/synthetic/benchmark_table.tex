@@ -1,0 +1,13 @@
+\begin{table}[htbp]
+\caption{MAE between recovered and true functional intercepts, negative cross-entropy loss on train and test set, and computational time. The MAE is averaged over the three class intercepts.}
+\label{tab:synthetic_benchmark}
+\begin{tabular}{lrrrrr}
+\toprule
+ & MAE - Train & MAE - Test & CEL - Train & CEL - Test & Comput. time [s] \\
+\midrule
+\textbf{FI-RUMBoost} & 0.044 & 0.043 & 1.343 & 1.344 & 3.100 \\
+\textbf{FI-DNN} & 0.038 & 0.037 & 1.346 & 1.343 & 11.820 \\
+\textbf{Random Intercept} & 0.289 & 0.112 & 1.35 & 1.349 & 47.640 \\
+\bottomrule
+\end{tabular}
+\end{table}
