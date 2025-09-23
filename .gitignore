@@ -9,3 +9,8 @@ synthetic_exp_problem_explanations.md
 things_to_do_or_update.md
 diagram*
 scopus_search_notes.md
+
+# docs
+docs/_build/
+docs/_autosummary/
+docs/_doctrees/
