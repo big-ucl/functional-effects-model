@@ -5,6 +5,7 @@ MPN_statement_EN_2022_1.7.5.pdf
 __pycache__/
 *comments.md
 *.pdf
+*.docx
 synthetic_exp_problem_explanations.md
 things_to_do_or_update.md
 diagram*
