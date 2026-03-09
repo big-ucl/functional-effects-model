@@ -11,6 +11,9 @@ things_to_do_or_update.md
 diagram*
 scopus_search_notes.md
 
+#model too large
+src/results/SwissMetro/GBDT/model_fiTrue_fpFalse.pkl
+
 # docs
 docs/_build/
 docs/_autosummary/
