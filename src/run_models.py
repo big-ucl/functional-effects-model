@@ -1,7 +1,7 @@
 from main import main
 import numpy as np
 
-for functional_intercept in [False]:#, False]:#, 
+for functional_intercept in [True]:#, False]:#, 
     for functional_params in [False]:#, False]:#True, 
         for dataset in ["LPMC", "SwissMetro"]: #, "LPMC"]:#, "easySHARE"]:#"]: "SwissMetro", 
             for model in ["GBDT", "DNN"]:#"TasteNet"]:#, "RUMBoost"

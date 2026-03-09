@@ -89,7 +89,7 @@ def objective(trial, model, func_int, func_params, dataset):
         num_classes = 13
     elif dataset == "LPMC":
         data_train, _, folds = load_preprocess_LPMC(PATH_TO_DATA[dataset])
-        features = [col for col in data_train.columns if col not in ["choice"]]
+        features = [col for col in data_train.columns if col not in ["choice", "household_id"]]
         target = "choice"
 
         X, y = data_train[features], data_train[target]
@@ -97,7 +97,7 @@ def objective(trial, model, func_int, func_params, dataset):
         socio_demo_chars = [
             col
             for col in data_train.columns
-            if col not in all_alt_spec_features and col not in ["choice"]
+            if col not in all_alt_spec_features and col not in ["choice", "household_id"]
         ]
         num_classes = 4
 
@@ -224,8 +224,12 @@ def objective(trial, model, func_int, func_params, dataset):
             int(size) for size in dict_args["layer_sizes"][0].split(", ")
         ]
         args.__dict__.update(dict_args)
+        if func_int:
+            features = list(set(all_alt_spec_features)) + socio_demo_chars
+        else:
+            features = list(set(all_alt_spec_features))
         model = DNN(
-            alt_spec_features=list(set(all_alt_spec_features)),
+            alt_spec_features=features,
             socio_demo_chars=socio_demo_chars,
             num_classes=num_classes,
             args=args,
@@ -254,8 +258,12 @@ def objective(trial, model, func_int, func_params, dataset):
             ),
         }
         args.__dict__.update(dict_args)
+        if func_int:
+            features = list(set(all_alt_spec_features)) + socio_demo_chars
+        else:
+            features = list(set(all_alt_spec_features))
         model = GBDT(
-            alt_spec_features=list(set(all_alt_spec_features)),
+            alt_spec_features=features,
             socio_demo_chars=socio_demo_chars,
             num_classes=num_classes,
             args=args,
@@ -306,7 +314,7 @@ if __name__ == "__main__":
     set_all_seeds(42)
     for dataset in ["LPMC", "SwissMetro"]:#, "easySHARE"]:
         for model in ["GBDT", "DNN"]: #"RUMBoost", "TasteNet"]:#,
-            for func_int in [False]: #, False]:#,
+            for func_int in [True]: #, False]:#,
                 for func_params in [False]: #, False]:
 
                     objective = partial(

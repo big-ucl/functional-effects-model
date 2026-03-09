@@ -87,13 +87,13 @@ def train(args):
                 data_val = data_train.iloc[val_idx]
                 data_train = data_train.iloc[train_idx]
 
-        features = [col for col in data_train.columns if col not in ["choice"]]
+        features = [col for col in data_train.columns if col not in ["choice", "household_id"]]
         target = "choice"
 
         socio_demo_chars = [
             col
             for col in data_train.columns
-            if col not in all_alt_spec_features and col not in ["choice"]
+            if col not in all_alt_spec_features and col not in ["choice", "household_id"]
         ]
         num_classes = 4
 
@@ -186,8 +186,12 @@ def train(args):
             if args.num_iterations == 0:
                 args.num_iterations = 3000 #falls back to default
             args.early_stopping_rounds = None
+        if args.functional_intercept:
+            features = list(set(all_alt_spec_features)) + socio_demo_chars
+        else:
+            features = list(set(all_alt_spec_features))
         model = GBDT(
-            alt_spec_features=list(set(all_alt_spec_features)),
+            alt_spec_features=features,
             socio_demo_chars=socio_demo_chars,
             num_classes=num_classes,
             args=args,
@@ -200,8 +204,14 @@ def train(args):
         if args.optimal_hyperparams and optimal_hyperparams:
             args.num_epochs = int(optimal_hyperparams["best_iteration"])
             args.patience = args.num_epochs
+        
+        if args.functional_intercept:
+            features = list(set(all_alt_spec_features)) + socio_demo_chars
+        else:
+            features = list(set(all_alt_spec_features))
+        print(f"Features: {features}")
         model = DNN(
-            alt_spec_features=list(set(all_alt_spec_features)),
+            alt_spec_features=features,
             socio_demo_chars=socio_demo_chars,
             num_classes=num_classes,
             args=args,
