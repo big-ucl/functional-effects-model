@@ -1,4 +1,4 @@
-# File model_fiTrue_fpFalse.yaml has automatically been generated on 2026-03-11 16:33:54.193762
+# File model_fiTrue_fpFalse.yaml has automatically been generated on 2026-03-11 17:32:28.018571
 # biogeme 3.3.1 [2026-03-11]
 
 beta_names:
@@ -128,7 +128,7 @@ bootstrap: []
 bootstrap_time: null
 convergence: true
 data_name: flat fixed_effects_data
-draws_processing_time: '1.783762'
+draws_processing_time: '1.701141'
 final_log_likelihood: -134992.82855718728
 gradient:
 - -0.11138912277309743
@@ -267,7 +267,7 @@ optimization_messages:
   Number of gradient evaluations: 1
   Number of hessian evaluations: 0
   Number of iterations: '0'
-  Optimization time: '3.357851'
+  Optimization time: '3.0799'
   Relative gradient: 4.246129352522206e-06
 sample_size: 10000
 types_of_draws:
