@@ -338,7 +338,6 @@ def gather_functional_intercepts(
             .to(torch.float32)
         )
         fct_intercept = tastenet_predictor(sdc_tensor).detach().cpu().numpy().squeeze()
-        print(tastenet_predictor.args)
     else:
         fct_intercept = model.get_individual_parameters(on_train_set=on_train_set)
         if on_train_set:
@@ -836,7 +835,6 @@ def plot_ind_spec_constant(
                 model_path = f"results/synthetic/{model}/model_fi{functional_intercept}_fp{functional_params}.pth"
                 tastenet = all_models[model]()
                 tastenet.load_model(path=model_path)
-                print(tastenet.model)
                 y_tastenet = gather_functional_intercepts(
                     df, tastenet, socio_demo_chars, n_alternatives, alt_normalised=3
                 )
@@ -858,7 +856,7 @@ def plot_ind_spec_constant(
                     on_train_set=(t == "train"),
                 )
 
-        colors = ["#004577", "#f54f1c", "#1c8d9e","#ff9500"]
+        colors = ["#004577", "#f54f1c","#41def7", "#ff9500"]
 
         for j in range(num_plots):
             fig, axes = plt.subplots(1, 4, figsize=(10, 2), dpi=300)
@@ -1057,7 +1055,7 @@ def plot_alt_spec_features(
         }
     )
 
-    colors = ["#264653", "#2a9d8f", "#0073a1", "#7cd2bf"]
+    colors = ["#004577", "#f54f1c","#41def7", "#ff9500"]
 
     for i, as_feat in enumerate(alt_spec_features_list):
 
@@ -1080,7 +1078,7 @@ def plot_alt_spec_features(
         plt.plot(x, y_tastenet, label="FI-DNN", color=colors[3], linewidth=0.8)
 
         plt.plot(
-            x, y_mixedeffect, label="Random intercept", color="#B35733", linewidth=0.8
+            x, y_mixedeffect, label="Random intercept", color="#7C2300", linewidth=0.8
         )
 
         plt.plot(x, y_true, label="Ground truth", color="black", linewidth=0.8)
