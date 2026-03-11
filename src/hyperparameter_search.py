@@ -313,11 +313,13 @@ if __name__ == "__main__":
     # set the random seed for reproducibility
     set_all_seeds(42)
     for dataset in ["LPMC"]:#, "easySHARE"]:
-        for model in ["RUMBoost", "TasteNet"]: #"RUMBoost", "TasteNet"]:#,
+        for model in ["TasteNet"]: #"RUMBoost", "TasteNet"]:#,"RUMBoost", 
             for func_int in [True, False]: #, False]:#,
                 for func_params in [True,False]: #, False]:
 
                     if not func_int and not func_params:
+                        continue
+                    if func_int and func_params:
                         continue
 
                     objective = partial(
