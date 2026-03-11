@@ -71,6 +71,7 @@ class TasteNet(nn.Module):
     def forward(self, x, z=None):
         if self.func_intercept or self.func_params:
             b = self.params_module(z)  # taste parameters, (N,1)
+            print(b)
             if self.num_classes == 3 and self.func_params:
                 b = self.monotonic_constraints(b)
             elif self.num_classes == 4 and self.func_params and b.shape[1] > 10:

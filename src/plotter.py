@@ -168,7 +168,7 @@ def plot_alt_spec_features(
     else:
         df = pd.read_csv(path_to_data)
 
-    colors = ["#264653", "#2a9d8f", "#0073a1", "#7cd2bf"]
+    colors = ["#004577", "#f54f1c","#41def7", "#ff9500"]
 
     for i, as_feat in enumerate(alt_spec_features):
 
@@ -206,12 +206,12 @@ def plot_alt_spec_features(
 
         plt.plot(x, y_rumboost, label="RUMBoost", color=colors[0], linewidth=0.8)
         plt.plot(
-            x, y_rumboost_fi, label="FI-RUMBoost", color=colors[2], linewidth=0.8
+            x, y_rumboost_fi, label="FI-RUMBoost", color=colors[2], linewidth=0.8, linestyle="--"
         )
         label_linear = "Ordinal Logit" if dataset == "easySHARE" else "MNL"
-        plt.plot(x, y_tastenet, label=label_linear, color=colors[1], linewidth=0.8)
+        plt.plot(x, y_tastenet, label=label_linear, color=colors[1], linewidth=0.8, linestyle=":")
         plt.plot(
-            x, y_tastenet_fi, label="FI-DNN", color=colors[3], linewidth=0.8
+            x, y_tastenet_fi, label="FI-DNN", color=colors[3], linewidth=0.8, linestyle="-."
         )
         # plt.xlabel(feature_names[as_feat])
         plt.ylabel("Utility")
@@ -317,7 +317,7 @@ def plot_ind_spec_constant(
         socio_demo_chars = [
             col
             for col in df.columns
-            if col not in alt_spec_features and col not in ["choice"]
+            if col not in alt_spec_features and col not in ["choice", "household_id"]
         ]
     else:
         df = pd.read_csv(path_to_data)
@@ -371,7 +371,7 @@ def plot_ind_spec_constant(
                 )
                 y_tastenet[:, -1] = y_tastenet[:, -1] + first_threshold
 
-    colors = ["#004577", "#1c8d9e", "#f54f1c","#ff9500"]
+    colors = ["#004577", "#f54f1c","#41def7", "#ff9500"]
 
     for j in range(num_plots):
         fig, axes = plt.subplots(1, 2, figsize=(8, 6), dpi=300)
@@ -522,7 +522,7 @@ def plot_ind_spec_constant(
 
 if __name__ == "__main__":
 
-    for dataset in ["easySHARE"]: #, "LPMC", "SwissMetro"
+    for dataset in ["LPMC", "SwissMetro"]: #, "LPMC", "SwissMetro", "easySHARE", 
         all_alt_spec_features = []
         for k, v in alt_spec_features[dataset].items():
             all_alt_spec_features.extend(v)

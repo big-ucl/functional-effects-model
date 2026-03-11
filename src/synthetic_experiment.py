@@ -338,6 +338,7 @@ def gather_functional_intercepts(
             .to(torch.float32)
         )
         fct_intercept = tastenet_predictor(sdc_tensor).detach().cpu().numpy().squeeze()
+        print(tastenet_predictor.args)
     else:
         fct_intercept = model.get_individual_parameters(on_train_set=on_train_set)
         if on_train_set:
@@ -835,6 +836,7 @@ def plot_ind_spec_constant(
                 model_path = f"results/synthetic/{model}/model_fi{functional_intercept}_fp{functional_params}.pth"
                 tastenet = all_models[model]()
                 tastenet.load_model(path=model_path)
+                print(tastenet.model)
                 y_tastenet = gather_functional_intercepts(
                     df, tastenet, socio_demo_chars, n_alternatives, alt_normalised=3
                 )
@@ -856,7 +858,7 @@ def plot_ind_spec_constant(
                     on_train_set=(t == "train"),
                 )
 
-        colors = ["#004577", "#1c8d9e", "#f54f1c","#ff9500"]
+        colors = ["#004577", "#f54f1c", "#1c8d9e","#ff9500"]
 
         for j in range(num_plots):
             fig, axes = plt.subplots(1, 4, figsize=(10, 2), dpi=300)
@@ -1096,56 +1098,56 @@ def plot_alt_spec_features(
 
 if __name__ == "__main__":
 
-    # for model in all_models.keys():
-    #     # run hyperparameter search
-    #     # hyperparameter_search(model=model)
+    for model in all_models.keys():
+        # run hyperparameter search
+        # hyperparameter_search(model=model)
 
-    #     # load the optimal hyperparameters for the model
-    #     args = parse_cmdline_args()
-    #     if model != "MixedEffect":
-    #         try:
-    #             opt_hyperparams_path = (
-    #                 f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
-    #             )
-    #             with open(opt_hyperparams_path, "rb") as f:
-    #                 optimal_hyperparams = pickle.load(f)
-    #                 if "layer_sizes" in optimal_hyperparams:
-    #                     optimal_hyperparams["layer_sizes"] = [
-    #                         int(size)
-    #                         for size in optimal_hyperparams["layer_sizes"].split(",")
-    #                     ]
-    #                 if "learning_rate" not in optimal_hyperparams:
-    #                     optimal_hyperparams["learning_rate"] = 1
-    #                 args.__dict__.update(optimal_hyperparams)
-    #         except FileNotFoundError:
-    #             print(
-    #                 f"Optimal hyperparameters not found for {model}. Running hyperparameter search."
-    #             )
-    #             hyperparameter_search(model=model)
-    #             opt_hyperparams_path = (
-    #                 f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
-    #             )
-    #             with open(opt_hyperparams_path, "rb") as f:
-    #                 optimal_hyperparams = pickle.load(f)
-    #                 if "layer_sizes" in optimal_hyperparams:
-    #                     optimal_hyperparams["layer_sizes"] = [
-    #                         int(size)
-    #                         for size in optimal_hyperparams["layer_sizes"].split(",")
-    #                     ]
-    #                 if "learning_rate" not in optimal_hyperparams:
-    #                     optimal_hyperparams["learning_rate"] = 1
-    #                 args.__dict__.update(optimal_hyperparams)
-    #     args.functional_intercept = True
-    #     args.functional_params = False
-    #     args.save_model = True
-    #     args.model = model
-    #     args.dataset = "synthetic"
-    #     if model == "RUMBoost":
-    #         args.num_iterations = int(args.best_iteration)
-    #     elif model == "TasteNet":
-    #         args.num_epochs = int(args.best_iteration)
-    #     args.early_stopping_rounds = None
-    #     run_experiment(args)
+        # load the optimal hyperparameters for the model
+        args = parse_cmdline_args()
+        if model != "MixedEffect":
+            try:
+                opt_hyperparams_path = (
+                    f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
+                )
+                with open(opt_hyperparams_path, "rb") as f:
+                    optimal_hyperparams = pickle.load(f)
+                    if "layer_sizes" in optimal_hyperparams:
+                        optimal_hyperparams["layer_sizes"] = [
+                            int(size)
+                            for size in optimal_hyperparams["layer_sizes"].split(",")
+                        ]
+                    if "learning_rate" not in optimal_hyperparams:
+                        optimal_hyperparams["learning_rate"] = 1
+                    args.__dict__.update(optimal_hyperparams)
+            except FileNotFoundError:
+                print(
+                    f"Optimal hyperparameters not found for {model}. Running hyperparameter search."
+                )
+                hyperparameter_search(model=model)
+                opt_hyperparams_path = (
+                    f"results/synthetic/{model}/best_params_fiTrue_fpFalse.pkl"
+                )
+                with open(opt_hyperparams_path, "rb") as f:
+                    optimal_hyperparams = pickle.load(f)
+                    if "layer_sizes" in optimal_hyperparams:
+                        optimal_hyperparams["layer_sizes"] = [
+                            int(size)
+                            for size in optimal_hyperparams["layer_sizes"].split(",")
+                        ]
+                    if "learning_rate" not in optimal_hyperparams:
+                        optimal_hyperparams["learning_rate"] = 1
+                    args.__dict__.update(optimal_hyperparams)
+        args.functional_intercept = True
+        args.functional_params = False
+        args.save_model = True
+        args.model = model
+        args.dataset = "synthetic"
+        if model == "RUMBoost":
+            args.num_iterations = int(args.best_iteration)
+        elif model == "TasteNet":
+            args.num_epochs = int(args.best_iteration)
+        args.early_stopping_rounds = None
+        run_experiment(args)
 
     plot_ind_spec_constant()
     plot_alt_spec_features(["f4", "f5", "f6", "f7"])
