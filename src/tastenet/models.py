@@ -73,8 +73,10 @@ class TasteNet(nn.Module):
             b = self.params_module(z)  # taste parameters, (N,1)
             if self.num_classes == 3 and self.func_params:
                 b = self.monotonic_constraints(b)
-            elif self.num_classes == 4 and self.func_params:
+            elif self.num_classes == 4 and self.func_params and b.shape[1] > 10:
                 b = self.lpmc_monotonic_constraints(b)
+            elif self.num_classes == 4 and self.func_params:
+                b = self.synthetic_monotonic_constraints(b)
         else:
             b = None
         v = self.util_module(x, b)  # no softmax here
@@ -141,6 +143,27 @@ class TasteNet(nn.Module):
                     b[:, 16:18].view(-1, 2),
                     -F.relu(-b[:, 18:23]),
                     b[:, 23:25].view(-1, 2),
+                ],
+                dim=1,
+            )
+        
+    def synthetic_monotonic_constraints(self, b):
+        """Put transformation for the sake of constraints on the value of times
+        This is only for the synthetic dataset and needs to be adapted for other datasets.
+        b: taste parameters (N, 1): Individual taste parameters.
+        """
+        if self.func_intercept:
+            return torch.cat(
+                [
+                    -F.relu(-b[:, :4]),
+                    b[:, -self.num_classes :].view(-1, self.num_classes),
+                ],
+                dim=1,
+            )
+        else:
+            return torch.cat(
+                [
+                    -F.relu(-b[:, :4])
                 ],
                 dim=1,
             )
