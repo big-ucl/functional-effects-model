@@ -371,7 +371,7 @@ def plot_ind_spec_constant(
                 )
                 y_tastenet[:, -1] = y_tastenet[:, -1] + first_threshold
 
-    colors = ["#264653", "#2a9d8f", "#0073a1", "#7cd2bf"]
+    colors = ["#004577", "#1c8d9e", "#f54f1c","#ff9500"]
 
     for j in range(num_plots):
         fig, axes = plt.subplots(1, 2, figsize=(8, 6), dpi=300)
@@ -456,17 +456,30 @@ def plot_ind_spec_constant(
                     # multiple="stack",
                 )
 
-            title = "GBDT" if model == "RUMBoost" else "DNN"
+            if model == "RUMBoost":
+                if functional_params and functional_intercept:
+                    title = "FIS-GBDT"
+                elif functional_params:
+                    title = "FS-GBDT"
+                elif functional_intercept:
+                    title = "FI-RUMBoost"
+            elif model == "TasteNet":
+                if functional_params and functional_intercept:
+                    title = "FIS-DNN"
+                elif functional_params:
+                    title = "FS-DNN"
+                elif functional_intercept:
+                    title = "FI-DNN"
 
-            if functional_params and j < num_plots - num_classes:
-                fig_title = f"{alt_spec_features[j]}"
-            else:
-                fig_title = "Intercept"
+            # if functional_params and j < num_plots - num_classes:
+            #     fig_title = f"{alt_spec_features[j]}"
+            # else:
+            #     fig_title = "Intercept"
             ax.set_title(title)
             # ax.set_xlabel("Functional values")
             if i % 2 == 0:
                 ax.set_ylabel("Count")
-                plt.title(fig_title, fontsize=8)
+                # plt.title(fig_title, fontsize=8)
             else:
                 ax.set_ylabel("")
 

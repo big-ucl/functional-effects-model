@@ -670,11 +670,14 @@ def hyperparameter_search(
 if __name__ == "__main__":
     for with_intercept in [True, False]: #, False]:#,
         for with_slopes in [True, False]: #, False]:#,
-             for functional_params in [False, False]: #, False]:#,
+             for functional_params in [True, False]: #, False]:#,
                 for functional_intercept in [True, False]: #, False]:#,
                     for model in all_models.keys():
                         # run hyperparameter search
                         # hyperparameter_search(model=model)
+                        if os.path.exists(f"results/synthetic_withint{with_intercept}_withslopes{with_slopes}/{model}/results_dict_fi{functional_intercept}_fp{functional_params}.csv"):
+                            print(f"Results already exist for {model} with functional_intercept={functional_intercept} and functional_params={functional_params}. Skipping.")
+                            continue
 
                         # load the optimal hyperparameters for the model
                         args = parse_cmdline_args()
@@ -723,6 +726,10 @@ if __name__ == "__main__":
                             args.num_epochs = int(args.best_iteration)
                         args.early_stopping_rounds = None
                         run_experiment(args)
+
+                        gc.collect()
+                        torch.cuda.empty_cache()
+
 
                     # plot_ind_spec_constant()
                     # plot_alt_spec_features(["f4", "f5", "f6", "f7"])

@@ -78,7 +78,7 @@ def generate_rum_structure(
                 md = 1
             elif value in [["f4"], ["f5"], ["f6"], ["f7"]]:
                 monotone_constraints = [-1]
-                md = -1
+                md = 1
             else:
                 monotone_constraints = [0] * len(value)
                 md = 1
@@ -118,6 +118,8 @@ def generate_rum_structure(
                 monotone_constraints = [-1, -1, -1, -1, -1, -1, -1, -1, 0, 0]
             elif "dur_driving" in value:
                 monotone_constraints = [-1, -1, -1, -1, 0, 0, -1]
+            elif value in [["f4"], ["f5"], ["f6"], ["f7"]]:
+                monotone_constraints = [-1]
             else:
                 monotone_constraints = [0] * len(value)
             rum_structure_params = [

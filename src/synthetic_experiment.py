@@ -856,7 +856,7 @@ def plot_ind_spec_constant(
                     on_train_set=(t == "train"),
                 )
 
-        colors = ["#264653", "#2a9d8f", "#0073a1", "#7cd2bf"]
+        colors = ["#004577", "#1c8d9e", "#f54f1c","#ff9500"]
 
         for j in range(num_plots):
             fig, axes = plt.subplots(1, 4, figsize=(10, 2), dpi=300)
@@ -956,7 +956,7 @@ def plot_ind_spec_constant(
                         y_mixedeffect[:, j],
                         ax=ax,
                         bins=bin_edges,
-                        color="#B35733",
+                        color="#7E3F15",
                         label=f"Random intercept",
                     )
 
