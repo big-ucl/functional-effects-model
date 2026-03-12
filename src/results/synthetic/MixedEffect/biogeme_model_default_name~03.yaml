@@ -1,5 +1,5 @@
-# File biogeme_model_default_name~00.yaml has automatically been generated on 2026-03-11 15:36:40.124228
-# biogeme 3.3.1 [2026-03-11]
+# File biogeme_model_default_name~03.yaml has automatically been generated on 2026-03-12 12:04:04.301700
+# biogeme 3.3.1 [2026-03-12]
 
 beta_names:
 - beta_f4_alt0
@@ -128,7 +128,7 @@ bootstrap: []
 bootstrap_time: null
 convergence: true
 data_name: flat fixed_effects_data
-draws_processing_time: '1.728247'
+draws_processing_time: '1.739961'
 final_log_likelihood: -134992.82855718728
 gradient:
 - -0.11138912277309743
@@ -267,7 +267,7 @@ optimization_messages:
   Number of gradient evaluations: 1
   Number of hessian evaluations: 0
   Number of iterations: '0'
-  Optimization time: '3.140548'
+  Optimization time: '3.290532'
   Relative gradient: 4.246129352522206e-06
 sample_size: 10000
 types_of_draws:

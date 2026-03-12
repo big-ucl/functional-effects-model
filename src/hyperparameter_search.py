@@ -1,3 +1,5 @@
+import argparse
+
 import pandas as pd
 import time
 import optuna
@@ -89,7 +91,9 @@ def objective(trial, model, func_int, func_params, dataset):
         num_classes = 13
     elif dataset == "LPMC":
         data_train, _, folds = load_preprocess_LPMC(PATH_TO_DATA[dataset])
-        features = [col for col in data_train.columns if col not in ["choice", "household_id"]]
+        features = [
+            col for col in data_train.columns if col not in ["choice", "household_id"]
+        ]
         target = "choice"
 
         X, y = data_train[features], data_train[target]
@@ -97,14 +101,13 @@ def objective(trial, model, func_int, func_params, dataset):
         socio_demo_chars = [
             col
             for col in data_train.columns
-            if col not in all_alt_spec_features and col not in ["choice", "household_id"]
+            if col not in all_alt_spec_features
+            and col not in ["choice", "household_id"]
         ]
         num_classes = 4
 
     # default args
     args = parse_cmdline_args()
-
-
 
     if model == "RUMBoost":
         # parameters for RUMBoost
@@ -308,62 +311,84 @@ def objective(trial, model, func_int, func_params, dataset):
     return avg_val_loss / k
 
 
+def main(dataset, model, func_int, func_params, n_trials):
+
+    if model == "DNN" and func_params:
+        print("Skipping invalid combination: DNN with func_params=True")
+        return
+
+    set_all_seeds(42)
+
+    obj = partial(
+        objective,
+        model=model,
+        func_int=func_int,
+        func_params=func_params,
+        dataset=dataset,
+    )
+
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=optuna.samplers.TPESampler(seed=42),
+        storage=f"sqlite:///optuna_study_fiP{func_int}_fp{func_params}_model{model}_dataset{dataset}.db",
+        load_if_exists=True,
+    )
+
+    start_time = time.time()
+
+    print(
+        f"Starting hyperparameter search on dataset {dataset} "
+        f"for {model} with func params {func_params} "
+        f"and with func intercept {func_int}..."
+    )
+
+    study.optimize(obj, n_trials=n_trials, n_jobs=1, catch=(Exception,))
+
+    end_time = time.time()
+
+    best_params = study.best_params
+    best_value = study.best_value
+    best_trial = study.best_trial
+    optimisation_time = end_time - start_time
+
+    best_params["best_iteration"] = best_trial.user_attrs["best_iteration"]
+
+    print(f"Best params: {best_params}")
+    print(f"Best value: {best_value}")
+
+    path = f"results/{dataset}/{model}/"
+    os.makedirs(path, exist_ok=True)
+
+    with open(
+        f"{path}/best_params_fi{func_int}_fp{func_params}.pkl",
+        "wb",
+    ) as f:
+        pickle.dump(best_params, f)
+
+    with open(
+        f"{path}/hyper_search_info_fi{func_int}_fp{func_params}.txt",
+        "w",
+    ) as f:
+        f.write(f"Best value: {best_value}\n")
+        f.write(f"Optimisation time: {optimisation_time}\n")
+
+
 if __name__ == "__main__":
 
-    # set the random seed for reproducibility
-    set_all_seeds(42)
-    for dataset in ["LPMC"]:#, "easySHARE"]:
-        for model in ["TasteNet"]: #"RUMBoost", "TasteNet"]:#,"RUMBoost", 
-            for func_int in [True, False]: #, False]:#,
-                for func_params in [True,False]: #, False]:
+    parser = argparse.ArgumentParser()
 
-                    if not func_int and not func_params:
-                        continue
-                    if func_int and func_params:
-                        continue
+    parser.add_argument("--dataset", type=str, required=True)
+    parser.add_argument("--model", type=str, choices=["TasteNet", "DNN"], required=True)
+    parser.add_argument("--func_int", type=lambda x: x.lower() == "true", required=True)
+    parser.add_argument("--func_params", type=lambda x: x.lower() == "true", required=True)
+    parser.add_argument("--n_trials", type=int, default=100)
 
-                    objective = partial(
-                        objective,
-                        model=model,
-                        func_int=func_int,
-                        func_params=func_params,
-                        dataset=dataset,
-                    )
+    args2 = parser.parse_args()
 
-                    study = optuna.create_study(direction="minimize")
-
-                    start_time = time.time()
-                    print(
-                        f"Starting hyperparameter search on dataset {dataset} for {model} with func params {func_params} and with func intercept {func_int}..."
-                    )
-                    study.optimize(objective, n_trials=100, n_jobs=1)
-                    end_time = time.time()
-
-                    best_params = study.best_params
-                    best_value = study.best_value
-                    best_trial = study.best_trial
-                    optimisation_time = end_time - start_time
-
-                    best_params["best_iteration"] = best_trial.user_attrs[
-                        "best_iteration"
-                    ]
-
-                    print(f"Best params: {best_params}")
-                    print(f"Best value: {best_value}")
-
-                    path = f"results/{dataset}/{model}/"
-                    # create the directory if it doesn't exist
-                    os.makedirs(path, exist_ok=True)
-
-                    with open(
-                        f"results/{dataset}/{model}/best_params_fi{func_int}_fp{func_params}.pkl",
-                        "wb",
-                    ) as f:
-                        pickle.dump(best_params, f)
-
-                    with open(
-                        f"results/{dataset}/{model}/hyper_search_info_fi{func_int}_fp{func_params}.txt",
-                        "w",
-                    ) as f:
-                        f.write(f"Best value: {best_value}\n")
-                        f.write(f"Optimisation time: {optimisation_time}\n")
+    main(
+        dataset=args2.dataset,
+        model=args2.model,
+        func_int=args2.func_int,
+        func_params=args2.func_params,
+        n_trials=args2.n_trials,
+    )

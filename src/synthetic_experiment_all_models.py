@@ -49,7 +49,7 @@ socio_demo_chars = [
     "f3",
 ]
 all_models = {
-    "RUMBoost": RUMBoost,
+    # "RUMBoost": RUMBoost,
     "TasteNet": TasteNet,
     # "MixedEffect": MixedEffect,
 }

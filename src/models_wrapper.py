@@ -375,7 +375,6 @@ class TasteNet:
         """
         Fits the model to the training data.
         """
-        self.model.train()
 
         best_loss = 1e10
         best_val_loss = 1e10
@@ -383,6 +382,7 @@ class TasteNet:
 
         for epoch in range(self.num_epochs):
             train_loss = 0
+            self.model.train()
 
             for i, (x, y, z) in enumerate(self.train_dataloader):
                 x = x.to(self.device)
@@ -788,13 +788,14 @@ class DNN:
         """
         Fits the model to the training data.
         """
-        self.model.train()
+
 
         best_loss = 1e10
         best_val_loss = 1e10
         patience_counter = 0
 
         for epoch in range(self.num_epochs):
+            self.model.train()
             train_loss = 0
 
             for i, (x, y) in enumerate(self.train_dataloader):

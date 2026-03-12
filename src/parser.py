@@ -244,6 +244,20 @@ def parse_cmdline_args(raw_args=None, parser=None):
         choices=["true", "false"],
     )
     parser.add_argument(
+        "--func_int",
+        type=str,
+        default="true",
+        help="Use functional intercept for the model",
+        choices=["True", "False"],
+    )
+    parser.add_argument(
+        "--func_params",
+        type=str,
+        default="true",
+        help="Use functional parameter for the model",
+        choices=["True", "False"],
+    )
+    parser.add_argument(
         "--num_latent_vals",
         type=int,
         default=1,
@@ -275,5 +289,10 @@ def parse_cmdline_args(raw_args=None, parser=None):
     args.optimal_hyperparams = d[args.optimal_hyperparams]
     args.functional_intercept = d[args.functional_intercept]
     args.functional_params = d[args.functional_params]
+
+    d2 = {'True': True,
+          'False': False}
+    args.func_int = d2[args.func_int]
+    args.func_params = d2[args.func_params]
 
     return args

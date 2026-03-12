@@ -2,9 +2,10 @@ from main import main
 
 for functional_intercept in [True, False]:#, False]:#, 
     for functional_params in [True, False]:#, False]:#True, 
-        for dataset in ["LPMC"]: #, "LPMC"]:#, "easySHARE"]:#"]: "SwissMetro", 
-            for model in ["TasteNet", "RUMBoost"]:#"TasteNet"]:#, "RUMBoost"
-                if not functional_intercept and not functional_params:
+        for dataset in ["LPMC", "SwissMetro", "easySHARE"]: #, "LPMC"]:#, "easySHARE"]:#"]: "SwissMetro", 
+            for model in ["TasteNet", "DNN"]:#"TasteNet"]:#, "RUMBoost"
+
+                if model == "DNN" and functional_params:
                     continue
 
                 main([
