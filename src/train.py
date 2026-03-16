@@ -29,6 +29,10 @@ def train(args):
     # create the output directory if it does not exist
     os.makedirs(args.outpath, exist_ok=True)
 
+    if os.path.exists(args.outpath + f"results_dict_fi{args.functional_intercept}_fp{args.functional_params}.csv"):
+        print(f"Results for dataset {args.dataset}, model {args.model}, func_int {args.functional_intercept}, func_params {args.functional_params} already exist. Skipping...")
+        return
+
     # set the random seed for reproducibility
     set_all_seeds(args.seed)
 

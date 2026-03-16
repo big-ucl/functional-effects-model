@@ -246,14 +246,14 @@ def parse_cmdline_args(raw_args=None, parser=None):
     parser.add_argument(
         "--func_int",
         type=str,
-        default="true",
+        default="True",
         help="Use functional intercept for the model",
         choices=["True", "False"],
     )
     parser.add_argument(
         "--func_params",
         type=str,
-        default="true",
+        default="True",
         help="Use functional parameter for the model",
         choices=["True", "False"],
     )

@@ -15,7 +15,7 @@ for fi in "${functional_intercepts[@]}"; do
 
         echo "Running $dataset $model fi=$fi fp=$fp"
 
-        python run_models.py \
+        python main.py \
           --functional_intercept $fi \
           --functional_params $fp \
           --model $model \

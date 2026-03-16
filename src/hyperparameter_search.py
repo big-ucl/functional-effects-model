@@ -316,6 +316,10 @@ def main(dataset, model, func_int, func_params, n_trials):
     if model == "DNN" and func_params:
         print("Skipping invalid combination: DNN with func_params=True")
         return
+    
+    if os.path.exists(f"results/{dataset}/{model}/best_params_fi{func_int}_fp{func_params}.pkl"):
+        print(f"Best params for dataset {dataset}, model {model}, func_int {func_int}, func_params {func_params} already exist. Skipping...")
+        return
 
     set_all_seeds(42)
 

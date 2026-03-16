@@ -1,3 +1,5 @@
+#!/bin/bash
+
 datasets=("LPMC" "SwissMetro" "easySHARE")
 models=("TasteNet" "DNN")
 
