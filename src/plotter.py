@@ -522,7 +522,7 @@ def plot_ind_spec_constant(
 
 if __name__ == "__main__":
 
-    for dataset in ["LPMC", "SwissMetro"]: #, "LPMC", "SwissMetro", "easySHARE", 
+    for dataset in ["LPMC", "SwissMetro", "easySHARE"]: #, "LPMC", "SwissMetro", "easySHARE", 
         all_alt_spec_features = []
         for k, v in alt_spec_features[dataset].items():
             all_alt_spec_features.extend(v)
