@@ -383,6 +383,7 @@ class TasteNet:
         for epoch in range(self.num_epochs):
             train_loss = 0
             self.model.train()
+            val_loss = 0
 
             for i, (x, y, z) in enumerate(self.train_dataloader):
                 x = x.to(self.device)
@@ -404,11 +405,11 @@ class TasteNet:
                 if self.l1_norm > 0 and (
                     self.functional_params or self.functional_intercept
                 ):
-                    loss += self.l1_norm * self.model.l1_norm().item() / x.shape[0]
+                    loss += self.l1_norm * self.model.l1_norm().sum() / x.shape[0]
                 if self.l2_norm > 0 and (
                     self.functional_params or self.functional_intercept
                 ):
-                    loss += self.l2_norm * self.model.l2_norm().item() / x.shape[0]
+                    loss += self.l2_norm * self.model.l2_norm().sum() / x.shape[0]
 
                 loss.backward()
                 self.optimiser.step()
@@ -420,7 +421,6 @@ class TasteNet:
             train_loss /= len(self.train_dataloader)
 
             if self.valid_dataloader is not None:
-                val_loss = 0
                 self.model.eval()
                 with torch.no_grad():
                     for i, (x, y, z) in enumerate(self.valid_dataloader):
@@ -437,10 +437,6 @@ class TasteNet:
                         val_loss += self.criterion(output, levels).item()
                 val_loss /= len(self.valid_dataloader)
                 self.scheduler.step(val_loss)
-                if self.verbose > 0:
-                    print(
-                        f"Epoch {epoch + 1}/{self.num_epochs}: train loss = {train_loss:.4f}, val. loss: {val_loss:.4f}"
-                    )
 
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
@@ -453,6 +449,11 @@ class TasteNet:
                     if patience_counter >= self.patience:
                         print("Early stopping")
                         break
+
+            if self.verbose > 0:
+                print(
+                    f"Epoch {epoch + 1}/{self.num_epochs}: train loss = {train_loss:.4f}, val. loss: {val_loss:.4f}"
+                )
 
         if hasattr(self, "best_model"):
             self.model = self.best_model
@@ -797,6 +798,7 @@ class DNN:
         for epoch in range(self.num_epochs):
             self.model.train()
             train_loss = 0
+            val_loss = 0
 
             for i, (x, y) in enumerate(self.train_dataloader):
                 x = x.to(self.device)
@@ -818,9 +820,9 @@ class DNN:
                 train_loss += loss.item()
 
                 if self.l1_norm > 0:
-                    loss += self.l1_norm * self.model.l1_norm().item() / x.shape[0]
+                    loss += self.l1_norm * self.model.l1_norm().sum() / x.shape[0]
                 if self.l2_norm > 0:
-                    loss += self.l2_norm * self.model.l2_norm().item() / x.shape[0]
+                    loss += self.l2_norm * self.model.l2_norm().sum() / x.shape[0]
 
                 loss.backward()
                 self.optimiser.step()
@@ -832,7 +834,6 @@ class DNN:
             train_loss /= len(self.train_dataloader)
 
             if self.valid_dataloader is not None:
-                val_loss = 0
                 self.model.eval()
                 with torch.no_grad():
                     for i, (x, y) in enumerate(self.valid_dataloader):
@@ -851,10 +852,7 @@ class DNN:
                         val_loss += self.criterion(output, levels).item()
                 val_loss /= len(self.valid_dataloader)
                 self.scheduler.step(val_loss)
-                if self.verbose > 0:
-                    print(
-                        f"Epoch {epoch + 1}/{self.num_epochs}: train loss = {train_loss:.4f}, val. loss: {val_loss:.4f}"
-                    )
+
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     best_loss = train_loss
@@ -866,6 +864,11 @@ class DNN:
                     if patience_counter >= self.patience:
                         print("Early stopping")
                         break
+
+            if self.verbose > 0:
+                print(
+                    f"Epoch {epoch + 1}/{self.num_epochs}: train loss = {train_loss:.4f}, val. loss: {val_loss:.4f}"
+                )
 
         if hasattr(self, "best_model"):
             self.model = self.best_model
