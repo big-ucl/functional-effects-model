@@ -631,7 +631,10 @@ def hyperparameter_search(
     )
 
     study = optuna.create_study(
-        direction="minimize", sampler=optuna.samplers.TPESampler(seed=0)
+        direction="minimize", 
+        sampler=optuna.samplers.TPESampler(seed=0),
+        storage=f"sqlite:///optuna_study_fi{func_int}_fp{func_params}_model{model}_synthetic_wi{with_intercept}_ws{with_slopes}.db",
+        load_if_exists=True,
     )
 
     start_time = time.time()
