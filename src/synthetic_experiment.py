@@ -312,6 +312,7 @@ def gather_functional_intercepts(
     functional_intercepts: np.ndarray
         The functional intercepts for the given features.
     """
+
     if isinstance(model, RUMBoost):
         rumboost_predictor = model.model.boosters[-n_classes:]
         fct_intercept = np.zeros((data.shape[0], n_classes))

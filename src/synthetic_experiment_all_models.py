@@ -11,6 +11,7 @@ import gc
 import pickle
 import optuna
 import biogeme.database as db
+import lightgbm as lgb
 
 from functools import partial
 from scipy.special import softmax
@@ -49,7 +50,7 @@ socio_demo_chars = [
     "f3",
 ]
 all_models = {
-    # "RUMBoost": RUMBoost,
+    "RUMBoost": RUMBoost,
     "TasteNet": TasteNet,
     # "MixedEffect": MixedEffect,
 }
@@ -252,7 +253,7 @@ def create_functional_slopes(
         elif i == 3:
             effects[:, i] = -np.sqrt(np.sum(x[:, 1:n_socio_dem], axis=1))
 
-        effects[:, i] = effects[:, i] / effects[:, i].min()
+        effects[:, i] = effects[:, i] / np.abs(effects[:, i]).max()
 
     return effects
 
@@ -353,6 +354,172 @@ def add_simulated_choices(
     return data
 
 
+def gather_functional_intercepts(
+    data: pd.DataFrame,
+    model: RUMBoost | TasteNet | MixedEffect,
+    socio_demo_characts: list[str] = socio_demo_chars,
+    n_classes: int = n_alternatives,
+    alt_normalised: int = 0,
+    on_train_set: bool = True,
+    functional_intercept: bool = True,
+    functional_params: bool = False,
+) -> np.ndarray:
+    """
+    Gather the learnt functional intercepts for the given model.
+
+    Parameters
+    ----------
+    data: pd.DataFrame
+        Data used for the synthetic experiment
+    model: RUMBoost or TasteNet
+        The model used for the synthetic experiment.
+    socio_demo_characts: list[str], optional (default: socio_demo_chars)
+        The socio-demographic characteristics used for the functional intercepts.
+    n_classes: int, optional (default: n_alternatives)
+        The number of alternatives (classes) in the model.
+    alt_normalised: int, optional (default: 0)
+        The alternative index for the normalised functional intercepts.
+    on_train_set: bool, optional (default: True)
+        Whether to compute the functional intercepts on the training set or not.
+        Only used for MixedEffect model.
+    functional_intercept: bool, optional
+        If the model uses functional intercepts.
+    functional_params: bool, optional
+        If the model uses functional parameters.
+
+    Returns
+    -------
+    functional_intercepts: np.ndarray
+        The functional intercepts for the given features.
+    """
+
+    if isinstance(model, RUMBoost):
+
+        if not functional_params:
+            dummy_array = np.zeros((1,)).reshape(-1, 1)
+            asc = np.zeros(
+                (
+                    1,
+                    n_classes,
+                )
+            )
+            for i, booster in enumerate(model.model.boosters[:-n_classes]):
+                asc[0, i] = booster.predict(dummy_array, raw_score=True)
+
+        if functional_intercept:
+            rumboost_predictor = model.model.boosters[-n_classes:]
+            fct_intercepts = np.zeros((data.shape[0], n_classes))
+            for i, predictor in enumerate(rumboost_predictor):
+                fct_intercepts[:, i] = predictor.predict(
+                    data[socio_demo_characts], raw_score=True
+                )
+            if not functional_params:
+                fct_intercepts += asc
+        else:
+            dummy_array = pd.DataFrame(
+                {
+                    "f0": [0],
+                    "f1": [0],
+                    "f2": [0],
+                    "f3": [0],
+                    "f4": [0],
+                    "f5": [0],
+                    "f6": [0],
+                    "f7": [0],
+                }
+            )
+            fct_intercepts, _, _ = model.predict(dummy_array)
+            if not functional_params:
+                fct_intercepts += asc
+            fct_intercepts = fct_intercepts.reshape(1, -1).repeat(data.shape[0], axis=0)
+
+        if functional_params:
+            rumboost_predictor = model.model.boosters[:4]
+            fct_slopes = np.zeros((data.shape[0], 4))
+            for i, predictor in enumerate(rumboost_predictor):
+                fct_slopes[:, i] = -np.maximum(
+                    -predictor.predict(data[socio_demo_characts], raw_score=True), 0
+                )
+        else:
+            rumboost_predictor = model.model.boosters[:4]
+            fct_slopes = np.zeros((data.shape[0], 4))
+            for i, predictor in enumerate(rumboost_predictor):
+                fct_slopes[:, i] = (
+                    predictor.predict(
+                        data.values[:, i + n_classes].reshape(-1, 1), raw_score=True
+                    )
+                    / data.values[:, i + n_classes]
+                )
+    elif isinstance(model, TasteNet):
+        if functional_intercept:
+            tastenet_predictor = model.model.params_module
+            sdc_tensor = (
+                torch.from_numpy(data[socio_demo_characts].values)
+                .to(torch.device("cuda"))
+                .to(torch.float32)
+            )
+            fct_intercepts = (
+                tastenet_predictor(sdc_tensor).detach().cpu().numpy()[:, -n_classes:]
+            )
+        else:
+            fct_intercepts = (
+                model.model.util_module.intercept.view(1, n_classes)
+                .detach()
+                .cpu()
+                .numpy()
+                .reshape(1, -1)
+                .repeat(data.shape[0], axis=0)
+            )
+
+        if functional_params:
+            tastenet_predictor = model.model.params_module
+            sdc_tensor = (
+                torch.from_numpy(data[socio_demo_characts].values)
+                .to(torch.device("cuda"))
+                .to(torch.float32)
+            )
+            fct_slopes = -np.maximum(
+                -tastenet_predictor(sdc_tensor).detach().cpu().numpy()[:, :4], 0
+            )
+        else:
+            fct_slopes = np.array([])
+            for param in model.model.util_module.mnl.mnl.parameters():
+                fct_slopes = np.concatenate(
+                    [fct_slopes, param.detach().cpu().numpy()[0]]
+                )
+            fct_slopes = fct_slopes.reshape(1, -1).repeat(data.shape[0], axis=0)
+
+    print(fct_slopes.shape)
+    print(fct_intercepts.shape)
+    fct_effects = np.concatenate([fct_slopes, fct_intercepts], axis=1)
+    if functional_intercept:
+        fct_effects[:, -n_classes:] = fct_effects[:, -n_classes:] - fct_effects[
+            :, -n_classes + alt_normalised
+        ].reshape(-1, 1)
+    return fct_effects
+
+
+def l1_distance(
+    true_fct_intercept: np.ndarray, learnt_fct_intercept: np.ndarray
+) -> float:
+    """
+    Compute the L1 distance between the true and learnt functional intercepts.
+
+    Parameters
+    ----------
+    true_fct_intercept: np.ndarray
+        The true functional intercepts.
+    learnt_fct_intercept: np.ndarray
+        The learnt functional intercepts.
+
+    Returns
+    -------
+    l1_distance: float
+        The L1 distance between the true and learnt functional intercepts.
+    """
+    return np.sum(np.abs(true_fct_intercept - learnt_fct_intercept), axis=0)
+
+
 def run_experiment(args: argparse.Namespace) -> None:
     """
     Run the synthetic experiment with the given arguments.
@@ -388,6 +555,82 @@ def run_experiment(args: argparse.Namespace) -> None:
     X_train, y_train = data_train[features], data_train["choice"]
     X_val, y_val = None, None
     X_test, y_test = data_test[features], data_test["choice"]
+
+    if args.with_intercept and args.with_slopes:
+        fct_intercepts = create_functional_intercepts(
+            data_train.values,
+            n_alternatives,
+            len(socio_demo_chars),
+        )
+        fct_intercepts_test = create_functional_intercepts(
+            data_test.values,
+            n_alternatives,
+            len(socio_demo_chars),
+        )
+        fct_slopes = create_functional_slopes(
+            data_train.values,
+            n_alternatives,
+            len(socio_demo_chars),
+        )
+        fct_slopes_test = create_functional_slopes(
+            data_test.values,
+            n_alternatives,
+            len(socio_demo_chars),
+        )
+
+        fct_effects = np.concatenate([fct_slopes, fct_intercepts], axis=1)
+        fct_effects_test = np.concatenate(
+            [fct_slopes_test, fct_intercepts_test], axis=1
+        )
+    elif args.with_slopes:
+        fct_slopes = create_functional_slopes(
+            data_train.values,
+            n_alternatives,
+            len(socio_demo_chars),
+        )
+        fct_slopes_test = create_functional_slopes(
+            data_test.values,
+            n_alternatives,
+            len(socio_demo_chars),
+        )
+        fct_effects = np.concatenate(
+            [fct_slopes, np.zeros((X_train.shape[0], n_alternatives))], axis=1
+        )
+        fct_effects_test = np.concatenate(
+            [fct_slopes_test, np.zeros((X_test.shape[0], n_alternatives))], axis=1
+        )
+    elif args.with_intercept:
+        fct_intercepts = create_functional_intercepts(
+            data_train.values,
+            n_alternatives,
+            len(socio_demo_chars),
+        )
+        fct_intercepts_test = create_functional_intercepts(
+            data_test.values,
+            n_alternatives,
+            len(socio_demo_chars),
+        )
+        fct_effects = np.concatenate(
+            [np.ones((X_train.shape[0], 4)), fct_intercepts], axis=1
+        )
+        fct_effects_test = np.concatenate(
+            [np.ones((X_test.shape[0], 4)), fct_intercepts_test], axis=1
+        )
+    else:
+        fct_effects = np.concatenate(
+            [
+                np.ones((X_train.shape[0], 4)),
+                np.zeros((X_train.shape[0], n_alternatives)),
+            ],
+            axis=1,
+        )
+        fct_effects_test = np.concatenate(
+            [
+                np.ones((X_test.shape[0], 4)),
+                np.zeros((X_test.shape[0], n_alternatives)),
+            ],
+            axis=1,
+        )
 
     # define instances of the models
     if args.model == "RUMBoost":
@@ -427,14 +670,56 @@ def run_experiment(args: argparse.Namespace) -> None:
     preds, _, _ = model.predict(X_test)
     loss_test = cross_entropy(preds, y_test)
 
+    # get learnt functional intercepts
+    learnt_fct_effects = gather_functional_intercepts(
+        data_train,
+        model,
+        socio_demo_chars,
+        n_alternatives,
+        alt_normalised=3,
+        on_train_set=True,
+        functional_intercept=args.functional_intercept,
+        functional_params=args.functional_params,
+    )
+    learnt_fct_effects_test = gather_functional_intercepts(
+        data_test,
+        model,
+        socio_demo_chars,
+        n_alternatives,
+        alt_normalised=3,
+        on_train_set=False,
+        functional_intercept=args.functional_intercept,
+        functional_params=args.functional_params,
+    )
+
+    l1_distance_train = l1_distance(
+        fct_effects,
+        learnt_fct_effects,
+    )
+    l1_distance_test = l1_distance(
+        fct_effects_test,
+        learnt_fct_effects_test,
+    )
+
+    avg_l1_dist = np.mean(l1_distance_train / X_train.shape[0])
+    avg_l1_dist_test = np.mean(l1_distance_test / X_test.shape[0])
+
     print(f"Best Train Loss: {best_train_loss}, Best Val Loss: {best_val_loss}")
     print(f"Test Loss: {loss_test}")
+    print(f"L1 distance per effects: {l1_distance_train}")
+    print(f"L1 distance per effects on the test set: {l1_distance_test}")
+    print(f"Average L1 distance per effect and observation: {avg_l1_dist}")
+    print(
+        f"Average L1 distance per effect and observation on the test set: {avg_l1_dist_test}"
+    )
 
     results_dict = {
         "train_loss": best_train_loss,
         "val_loss": best_val_loss,
         "loss_test": loss_test,
         "train_time": end_time - start_time,
+        "avg_l1_dist": avg_l1_dist,
+        "avg_l1_dist_test": avg_l1_dist_test,
     }
 
     if args.save_model:
@@ -448,7 +733,11 @@ def run_experiment(args: argparse.Namespace) -> None:
 
 
 def hyperparameter_search(
-    model: str = "RUMBoost", with_intercept: bool = True, with_slopes: bool = True, functional_params: bool = False, functional_intercept: bool = True
+    model: str = "RUMBoost",
+    with_intercept: bool = True,
+    with_slopes: bool = True,
+    functional_params: bool = False,
+    functional_intercept: bool = True,
 ) -> None:
     """
     Perform hyperparameter search for the models.
@@ -631,7 +920,7 @@ def hyperparameter_search(
     )
 
     study = optuna.create_study(
-        direction="minimize", 
+        direction="minimize",
         sampler=optuna.samplers.TPESampler(seed=0),
         storage=f"sqlite:///optuna_study_fi{func_int}_fp{func_params}_model{model}_synthetic_wi{with_intercept}_ws{with_slopes}.db",
         load_if_exists=True,
@@ -671,29 +960,33 @@ def hyperparameter_search(
 
 
 if __name__ == "__main__":
-    for with_intercept in [True, False]: #, False]:#,
-        for with_slopes in [True, False]: #, False]:#,
-             for functional_params in [True, False]: #, False]:#,
-                for functional_intercept in [True, False]: #, False]:#,
+    for with_intercept in [True, False]:  # , False]:#,
+        for with_slopes in [True, False]:  # , False]:#,
+            for functional_params in [True, False]:  # , False]:#,
+                for functional_intercept in [True, False]:  # , False]:#,
                     for model in all_models.keys():
                         # run hyperparameter search
                         # hyperparameter_search(model=model)
-                        if os.path.exists(f"results/synthetic_withint{with_intercept}_withslopes{with_slopes}/{model}/results_dict_fi{functional_intercept}_fp{functional_params}.csv"):
-                            print(f"Results already exist for {model} with functional_intercept={functional_intercept} and functional_params={functional_params}. Skipping.")
+                        if os.path.exists(
+                            f"results/synthetic_withint{with_intercept}_withslopes{with_slopes}/{model}/results_dict_fi{functional_intercept}_fp{functional_params}.csv"
+                        ):
+                            print(
+                                f"Results already exist for {model} with functional_intercept={functional_intercept} and functional_params={functional_params}. Skipping."
+                            )
                             continue
 
                         # load the optimal hyperparameters for the model
                         args = parse_cmdline_args()
                         try:
-                            opt_hyperparams_path = (
-                                f"results/synthetic_withint{with_intercept}_withslopes{with_slopes}/{model}/best_params_fi{functional_intercept}_fp{functional_params}.pkl"
-                            )
+                            opt_hyperparams_path = f"results/synthetic_withint{with_intercept}_withslopes{with_slopes}/{model}/best_params_fi{functional_intercept}_fp{functional_params}.pkl"
                             with open(opt_hyperparams_path, "rb") as f:
                                 optimal_hyperparams = pickle.load(f)
                                 if "layer_sizes" in optimal_hyperparams:
                                     optimal_hyperparams["layer_sizes"] = [
                                         int(size)
-                                        for size in optimal_hyperparams["layer_sizes"].split(",")
+                                        for size in optimal_hyperparams[
+                                            "layer_sizes"
+                                        ].split(",")
                                     ]
                                 if "learning_rate" not in optimal_hyperparams:
                                     optimal_hyperparams["learning_rate"] = 1
@@ -702,16 +995,22 @@ if __name__ == "__main__":
                             print(
                                 f"Optimal hyperparameters not found for {model}. Running hyperparameter search."
                             )
-                            hyperparameter_search(model=model, with_intercept=with_intercept, with_slopes=with_slopes, functional_params=functional_params, functional_intercept=functional_intercept)
-                            opt_hyperparams_path = (
-                                f"results/synthetic_withint{with_intercept}_withslopes{with_slopes}/{model}/best_params_fi{functional_intercept}_fp{functional_params}.pkl"
+                            hyperparameter_search(
+                                model=model,
+                                with_intercept=with_intercept,
+                                with_slopes=with_slopes,
+                                functional_params=functional_params,
+                                functional_intercept=functional_intercept,
                             )
+                            opt_hyperparams_path = f"results/synthetic_withint{with_intercept}_withslopes{with_slopes}/{model}/best_params_fi{functional_intercept}_fp{functional_params}.pkl"
                             with open(opt_hyperparams_path, "rb") as f:
                                 optimal_hyperparams = pickle.load(f)
                                 if "layer_sizes" in optimal_hyperparams:
                                     optimal_hyperparams["layer_sizes"] = [
                                         int(size)
-                                        for size in optimal_hyperparams["layer_sizes"].split(",")
+                                        for size in optimal_hyperparams[
+                                            "layer_sizes"
+                                        ].split(",")
                                     ]
                                 if "learning_rate" not in optimal_hyperparams:
                                     optimal_hyperparams["learning_rate"] = 1
@@ -732,7 +1031,3 @@ if __name__ == "__main__":
 
                         gc.collect()
                         torch.cuda.empty_cache()
-
-
-                    # plot_ind_spec_constant()
-                    # plot_alt_spec_features(["f4", "f5", "f6", "f7"])
