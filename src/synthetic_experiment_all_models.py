@@ -403,9 +403,23 @@ def gather_functional_intercepts(
                     n_classes,
                 )
             )
-            for i, booster in enumerate(model.model.boosters[:-n_classes]):
+            for i, booster in enumerate(model.model.boosters[:n_classes]):
                 asc[0, i] = booster.predict(dummy_array, raw_score=True)
 
+            dummy_df = pd.DataFrame(
+                {
+                    "f0": [0],
+                    "f1": [0],
+                    "f2": [0],
+                    "f3": [0],
+                    "f4": [0],
+                    "f5": [0],
+                    "f6": [0],
+                    "f7": [0],
+                }
+            )
+
+            
         if functional_intercept:
             rumboost_predictor = model.model.boosters[-n_classes:]
             fct_intercepts = np.zeros((data.shape[0], n_classes))
@@ -444,12 +458,12 @@ def gather_functional_intercepts(
             rumboost_predictor = model.model.boosters[:4]
             fct_slopes = np.zeros((data.shape[0], 4))
             for i, predictor in enumerate(rumboost_predictor):
-                fct_slopes[:, i] = (
+                preds = (
                     predictor.predict(
                         data.values[:, i + n_classes].reshape(-1, 1), raw_score=True
                     )
-                    / data.values[:, i + n_classes]
                 )
+                fct_slopes[:, i] = (preds - asc[:,i]) / data.values[:, i + n_classes]
     elif isinstance(model, TasteNet):
         if functional_intercept:
             tastenet_predictor = model.model.params_module
@@ -489,8 +503,7 @@ def gather_functional_intercepts(
                 )
             fct_slopes = fct_slopes.reshape(1, -1).repeat(data.shape[0], axis=0)
 
-    print(fct_slopes.shape)
-    print(fct_intercepts.shape)
+
     fct_effects = np.concatenate([fct_slopes, fct_intercepts], axis=1)
     if functional_intercept:
         fct_effects[:, -n_classes:] = fct_effects[:, -n_classes:] - fct_effects[
@@ -518,6 +531,26 @@ def l1_distance(
         The L1 distance between the true and learnt functional intercepts.
     """
     return np.sum(np.abs(true_fct_intercept - learnt_fct_intercept), axis=0)
+
+def mape(
+    true_fct_intercept: np.ndarray, learnt_fct_intercept: np.ndarray
+) -> float:
+    """
+    Compute the L1 distance between the true and learnt functional intercepts.
+
+    Parameters
+    ----------
+    true_fct_intercept: np.ndarray
+        The true functional intercepts.
+    learnt_fct_intercept: np.ndarray
+        The learnt functional intercepts.
+
+    Returns
+    -------
+    l1_distance: float
+        The L1 distance between the true and learnt functional intercepts.
+    """
+    return np.sum(np.abs((true_fct_intercept - learnt_fct_intercept)/(true_fct_intercept + 1e-6)), axis=0)
 
 
 def run_experiment(args: argparse.Namespace) -> None:
@@ -611,22 +644,22 @@ def run_experiment(args: argparse.Namespace) -> None:
             len(socio_demo_chars),
         )
         fct_effects = np.concatenate(
-            [np.ones((X_train.shape[0], 4)), fct_intercepts], axis=1
+            [-np.ones((X_train.shape[0], 4)), fct_intercepts], axis=1
         )
         fct_effects_test = np.concatenate(
-            [np.ones((X_test.shape[0], 4)), fct_intercepts_test], axis=1
+            [-np.ones((X_test.shape[0], 4)), fct_intercepts_test], axis=1
         )
     else:
         fct_effects = np.concatenate(
             [
-                np.ones((X_train.shape[0], 4)),
+                -np.ones((X_train.shape[0], 4)),
                 np.zeros((X_train.shape[0], n_alternatives)),
             ],
             axis=1,
         )
         fct_effects_test = np.concatenate(
             [
-                np.ones((X_test.shape[0], 4)),
+                -np.ones((X_test.shape[0], 4)),
                 np.zeros((X_test.shape[0], n_alternatives)),
             ],
             axis=1,
@@ -672,7 +705,7 @@ def run_experiment(args: argparse.Namespace) -> None:
 
     # get learnt functional intercepts
     learnt_fct_effects = gather_functional_intercepts(
-        data_train,
+        X_train,
         model,
         socio_demo_chars,
         n_alternatives,
@@ -682,7 +715,7 @@ def run_experiment(args: argparse.Namespace) -> None:
         functional_params=args.functional_params,
     )
     learnt_fct_effects_test = gather_functional_intercepts(
-        data_test,
+        X_test,
         model,
         socio_demo_chars,
         n_alternatives,
@@ -704,6 +737,21 @@ def run_experiment(args: argparse.Namespace) -> None:
     avg_l1_dist = np.mean(l1_distance_train / X_train.shape[0])
     avg_l1_dist_test = np.mean(l1_distance_test / X_test.shape[0])
 
+    mape_train = mape(
+        fct_effects,
+        learnt_fct_effects,
+    )
+    mape_test = mape(
+        fct_effects_test,
+        learnt_fct_effects_test,
+    )
+
+    avg_l1_dist = np.mean(l1_distance_train / X_train.shape[0])
+    avg_l1_dist_test = np.mean(l1_distance_test / X_test.shape[0])
+
+    avg_mape_train = np.mean(mape_train / X_train.shape[0])
+    avg_mape_test =  np.mean(mape_test / X_test.shape[0])
+
     print(f"Best Train Loss: {best_train_loss}, Best Val Loss: {best_val_loss}")
     print(f"Test Loss: {loss_test}")
     print(f"L1 distance per effects: {l1_distance_train}")
@@ -720,6 +768,8 @@ def run_experiment(args: argparse.Namespace) -> None:
         "train_time": end_time - start_time,
         "avg_l1_dist": avg_l1_dist,
         "avg_l1_dist_test": avg_l1_dist_test,
+        "mape": avg_mape_train,
+        "mape_test": avg_mape_test,
     }
 
     if args.save_model:
@@ -960,20 +1010,20 @@ def hyperparameter_search(
 
 
 if __name__ == "__main__":
-    for with_intercept in [True, False]:  # , False]:#,
-        for with_slopes in [True, False]:  # , False]:#,
-            for functional_params in [True, False]:  # , False]:#,
-                for functional_intercept in [True, False]:  # , False]:#,
+    for with_intercept in [False, True]:  # , False]:#,
+        for with_slopes in [False, True]:  # , False]:#,
+            for functional_params in [False, True]:  # , False]:#,
+                for functional_intercept in [False, True]:  # , False]:#,
                     for model in all_models.keys():
                         # run hyperparameter search
                         # hyperparameter_search(model=model)
-                        if os.path.exists(
-                            f"results/synthetic_withint{with_intercept}_withslopes{with_slopes}/{model}/results_dict_fi{functional_intercept}_fp{functional_params}.csv"
-                        ):
-                            print(
-                                f"Results already exist for {model} with functional_intercept={functional_intercept} and functional_params={functional_params}. Skipping."
-                            )
-                            continue
+                        # if os.path.exists(
+                        #     f"results/synthetic_withint{with_intercept}_withslopes{with_slopes}/{model}/results_dict_fi{functional_intercept}_fp{functional_params}.csv"
+                        # ):
+                        #     print(
+                        #         f"Results already exist for {model} with functional_intercept={functional_intercept} and functional_params={functional_params}. Skipping."
+                        #     )
+                        #     continue
 
                         # load the optimal hyperparameters for the model
                         args = parse_cmdline_args()
@@ -1017,7 +1067,7 @@ if __name__ == "__main__":
                                 args.__dict__.update(optimal_hyperparams)
                         args.functional_intercept = functional_intercept
                         args.functional_params = functional_params
-                        args.save_model = True
+                        args.save_model = False 
                         args.model = model
                         args.dataset = "synthetic"
                         args.with_intercept = with_intercept
