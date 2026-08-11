@@ -1,22 +1,23 @@
 \begin{table}[htbp]
-\caption{Negative cross-entropy loss on test set for all possible functional effects models and synthetic datasets.}
+\caption{Mean Absolute Error (MAE) between true and recovered functional effects (averaged across observations and effects), and negative cross-entropy loss (CEL) on test set for all possible functional effects models and synthetic datasets.}
 \label{tab:synthetic_big_benchmark}
 \begin{tabular}{lrrrrr}
 \toprule
- &  & \multicolumn{4}{r}{Datasets} \\
- &  & With FI and FS & With FS & With FI & Without FI and FS \\
-Model & Functional effects &  &  &  &  \\
+ &  & \multicolumn{8}{r}{Datasets} \\
+ &  & \multicolumn{2}{r}{With FI and FS} & \multicolumn{2}{r}{With FS} & \multicolumn{2}{r}{With FI} & \multicolumn{2}{r}{Without FI and FS} \\
+ &  & MAE & CEL & MAE & CEL & MAE & CEL & MAE & CEL \\
+Model & Functional effects &  &  &  &  &  &  &  &  \\
 \midrule
-\multirow[t]{4}{*}{\textbf{RUMBoost}} & \textbf{Functional intercept and slopes} & 1.374 & 1.381 & 1.344 & 1.359 \\
-\textbf{} & \textbf{Functional slopes only} & 1.381 & 1.383 & 1.345 & 1.359 \\
-\textbf{} & \textbf{Functional intercept only} & 1.373 & 1.382 & 1.344 & 1.359 \\
-\textbf{} & \textbf{No functional effects} & 1.386 & 1.384 & 1.35 & 1.359 \\
-\cline{1-6}
-\multirow[t]{4}{*}{\textbf{TasteNet}} & \textbf{Functional intercept and slopes} & 1.375 & 1.382 & 1.351 & 1.358 \\
-\textbf{} & \textbf{Functional slopes only} & 1.38 & 1.383 & 1.345 & 1.359 \\
-\textbf{} & \textbf{Functional intercept only} & 1.367 & 1.374 & 1.344 & 1.359 \\
-\textbf{} & \textbf{No functional effects} & 1.379 & 1.376 & 1.35 & 1.359 \\
-\cline{1-6}
+\multirow[t]{4}{*}{\textbf{RUMBoost}} & \textbf{Functional intercept and slopes} & 0.075 & 1.359 & 0.089 & 1.375 & 0.064 & 1.344 & 0.061 & 1.359 \\
+\textbf{} & \textbf{Functional slopes only} & 0.144 & 1.36 & 0.173 & 1.374 & 0.137 & 1.345 & 0.175 & 1.359 \\
+\textbf{} & \textbf{Functional intercept only} & 0.136 & 1.359 & 0.129 & 1.375 & 0.093 & 1.344 & 0.133 & 1.359 \\
+\textbf{} & \textbf{No functional effects} & 0.325 & 1.363 & 0.36 & 1.378 & 0.332 & 1.35 & 0.431 & 1.359 \\
+\cline{1-10}
+\multirow[t]{4}{*}{\textbf{TasteNet}} & \textbf{Functional intercept and slopes} & 0.062 & 1.359 & 0.048 & 1.374 & 0.214 & 1.351 & 0.058 & 1.358 \\
+\textbf{} & \textbf{Functional slopes only} & 0.172 & 1.359 & 0.094 & 1.375 & 0.156 & 1.345 & 0.058 & 1.359 \\
+\textbf{} & \textbf{Functional intercept only} & 0.099 & 1.359 & 0.1 & 1.375 & 0.026 & 1.344 & 0.032 & 1.359 \\
+\textbf{} & \textbf{No functional effects} & 0.197 & 1.362 & 0.08 & 1.377 & 0.123 & 1.35 & 0.03 & 1.359 \\
+\cline{1-10}
 \bottomrule
 \end{tabular}
 \end{table}
