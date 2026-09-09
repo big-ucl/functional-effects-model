@@ -13,7 +13,6 @@ from utils import pkl_to_df
 from typing import List, Dict
 from rumboost.datasets import load_preprocess_LPMC
 
-
 all_models = {
     "RUMBoost": RUMBoost,
     "TasteNet": TasteNet,
@@ -21,7 +20,25 @@ all_models = {
 
 feature_duplicated = ["distance", "day_of_week", "start_time_linear"]
 
-lpmc_monotonic_constraints = [0, 1, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22]
+lpmc_monotonic_constraints = [
+    0,
+    1,
+    4,
+    5,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    18,
+    19,
+    20,
+    21,
+    22,
+]
 
 feature_names = {
     "bmi": "BMI",
@@ -71,6 +88,11 @@ feature_names = {
     "congestion_charge": "Congestion charge",
     "driving_traffic_percent": "Road congestion percentage",
 }
+
+sm_tt_indices = [0, 3, 7]
+sm_cost_indices = [2, 5, 8]
+lpmc_tt_indices = [0, 4, 9, 18]
+lpmc_cost_indices = [14, 19]
 
 
 def plot_alt_spec_features(
@@ -168,7 +190,7 @@ def plot_alt_spec_features(
     else:
         df = pd.read_csv(path_to_data)
 
-    colors = ["#004577", "#f54f1c","#41def7", "#ff9500"]
+    colors = ["#004577", "#f54f1c", "#41def7", "#ff9500"]
 
     for i, as_feat in enumerate(alt_spec_features):
 
@@ -206,12 +228,29 @@ def plot_alt_spec_features(
 
         plt.plot(x, y_rumboost, label="RUMBoost", color=colors[0], linewidth=0.8)
         plt.plot(
-            x, y_rumboost_fi, label="FI-RUMBoost", color=colors[2], linewidth=0.8, linestyle="--"
+            x,
+            y_rumboost_fi,
+            label="FI-RUMBoost",
+            color=colors[2],
+            linewidth=0.8,
+            linestyle="--",
         )
         label_linear = "Ordinal Logit" if dataset == "easySHARE" else "MNL"
-        plt.plot(x, y_tastenet, label=label_linear, color=colors[1], linewidth=0.8, linestyle=":")
         plt.plot(
-            x, y_tastenet_fi, label="FI-DNN", color=colors[3], linewidth=0.8, linestyle="-."
+            x,
+            y_tastenet,
+            label=label_linear,
+            color=colors[1],
+            linewidth=0.8,
+            linestyle=":",
+        )
+        plt.plot(
+            x,
+            y_tastenet_fi,
+            label="FI-DNN",
+            color=colors[3],
+            linewidth=0.8,
+            linestyle="-.",
         )
         # plt.xlabel(feature_names[as_feat])
         plt.ylabel("Utility")
@@ -223,7 +262,9 @@ def plot_alt_spec_features(
                 class_number = 0 if i < 4 else 1 if i < 8 else 2 if i < 18 else 3
             else:
                 class_number = ""
-            save_path = f"results/{dataset}/figures/{feature_names[as_feat]}{class_number}.png"
+            save_path = (
+                f"results/{dataset}/figures/{feature_names[as_feat]}{class_number}.png"
+            )
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
@@ -369,9 +410,9 @@ def plot_ind_spec_constant(
                 first_threshold = (
                     tastenet.model.ordinal_module.coral_bias[0].detach().cpu().numpy()
                 )
-                y_tastenet[:, -1] = y_tastenet[:, -1] - y_tastenet[:,-1].mean(axis=0)
+                y_tastenet[:, -1] = y_tastenet[:, -1] - y_tastenet[:, -1].mean(axis=0)
 
-    colors = ["#004577", "#f54f1c","#41def7", "#ff9500"]
+    colors = ["#004577", "#f54f1c", "#41def7", "#ff9500"]
 
     for j in range(num_plots):
         fig, axes = plt.subplots(1, 2, figsize=(8, 6), dpi=300)
@@ -390,7 +431,11 @@ def plot_ind_spec_constant(
             elif dataset == "SwissMetro" and j != 6:
                 y_rumboost = np.minimum(y_rumboost, 0)
 
-            if dataset == "LPMC" and functional_params and j in lpmc_monotonic_constraints:
+            if (
+                dataset == "LPMC"
+                and functional_params
+                and j in lpmc_monotonic_constraints
+            ):
                 y_rumboost = np.minimum(y_rumboost, 0)
 
             if (
@@ -404,13 +449,17 @@ def plot_ind_spec_constant(
             max_val = y_rumboost.max()
         if "TasteNet" in all_models:
             y_tastenet[:, j] = y_tastenet[:, j] / x_max
-            if dataset == "SwissMetro" and functional_intercept: 
+            if dataset == "SwissMetro" and functional_intercept:
                 if j != 6 and j < num_plots - num_classes:
                     y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
             elif dataset == "SwissMetro" and j != 6:
                 y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
 
-            if dataset == "LPMC" and functional_params and j in lpmc_monotonic_constraints:
+            if (
+                dataset == "LPMC"
+                and functional_params
+                and j in lpmc_monotonic_constraints
+            ):
                 y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
 
             min_val = min(min_val, y_tastenet[:, j].min())
@@ -494,7 +543,12 @@ def plot_ind_spec_constant(
         if save_fig:
             if not feature_to_highlight:
                 feature_to_highlight = ""
-            if dataset == "LPMC" and functional_params and j < len(alt_spec_features) and alt_spec_features[j] in feature_duplicated:
+            if (
+                dataset == "LPMC"
+                and functional_params
+                and j < len(alt_spec_features)
+                and alt_spec_features[j] in feature_duplicated
+            ):
                 class_number = 0 if j < 4 else 1 if j < 8 else 2 if j < 18 else 3
             else:
                 class_number = ""
@@ -520,16 +574,17 @@ def plot_ind_spec_constant(
         # plt.show()
 
 
-def additional_plots_for(
+def additional_plots_for_lpmc_sm(
     alt_spec_features: List = alt_spec_features,
     all_models: Dict = all_models,
     path_to_data: str = PATH_TO_DATA,
     path_to_data_train: str = PATH_TO_DATA_TRAIN,
     save_fig: bool = False,
-    feature_to_highlight: str = None,
+    features_highlighted: str = "",
     functional_params: bool = True,
     functional_intercept: bool = True,
     dataset: str = "SwissMetro",
+    features_on_plot: list = lpmc_tt_indices,
 ):
     """
     Plot the individual-specific constant for the models.
@@ -659,60 +714,69 @@ def additional_plots_for(
                 first_threshold = (
                     tastenet.model.ordinal_module.coral_bias[0].detach().cpu().numpy()
                 )
-                y_tastenet[:, -1] = y_tastenet[:, -1] - y_tastenet[:,-1].mean(axis=0)
+                y_tastenet[:, -1] = y_tastenet[:, -1] - y_tastenet[:, -1].mean(axis=0)
 
-    colors = ["#004577", "#f54f1c","#41def7", "#ff9500"]
+    colors = ["#004577", "#f54f1c", "#41def7", "#ff9500"]
 
+    min_val = -1e6
+    max_val = 1e6
+    max_count = 0
+    y_rumboost_plot = []
+    y_tastenet_plot = []
+    feature_plot_names = []
     for j in range(num_plots):
-        fig, axes = plt.subplots(1, 2, figsize=(8, 6), dpi=300)
-        if functional_intercept:
-            if j < num_plots - num_classes:
-                x_max = df[[alt_spec_features[j]]].max().values
-            else:
-                x_max = 1
-        else:
-            x_max = df[[alt_spec_features[j]]].max().values
+
+        if j not in features_on_plot:
+            continue
+        x_max = df[[alt_spec_features[j]]].max().values
+
         if "RUMBoost" in all_models:
             y_rumboost = rumboost_predictor[j].predict(df[socio_demo_chars]) / x_max
+
             if dataset == "SwissMetro" and functional_intercept:
                 if j != 6 and j < num_plots - num_classes:
                     y_rumboost = np.minimum(y_rumboost, 0)
             elif dataset == "SwissMetro" and j != 6:
                 y_rumboost = np.minimum(y_rumboost, 0)
 
-            if dataset == "LPMC" and functional_params and j in lpmc_monotonic_constraints:
+            if (
+                dataset == "LPMC"
+                and functional_params
+                and j in lpmc_monotonic_constraints
+            ):
                 y_rumboost = np.minimum(y_rumboost, 0)
 
-            if (
-                dataset == "easySHARE"
-                and functional_intercept
-                and j >= num_plots - num_classes
-            ):
-                first_threshold = rumboost.model.thresholds[0]
-                y_rumboost = y_rumboost - y_rumboost.mean(axis=0)
-            min_val = y_rumboost.min()
-            max_val = y_rumboost.max()
+            if min_val == -1e6:
+                min_val = y_rumboost.min()
+            else:
+                min_val = min(min_val, y_rumboost.min())
+            if max_val == 1e6:
+                max_val = y_rumboost.max()
+            else:
+                max_val = max(max_val, y_rumboost.max())
+            y_rumboost_plot.append(y_rumboost)
         if "TasteNet" in all_models:
             y_tastenet[:, j] = y_tastenet[:, j] / x_max
-            if dataset == "SwissMetro" and functional_intercept: 
+
+            if dataset == "SwissMetro" and functional_intercept:
                 if j != 6 and j < num_plots - num_classes:
                     y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
             elif dataset == "SwissMetro" and j != 6:
                 y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
 
-            if dataset == "LPMC" and functional_params and j in lpmc_monotonic_constraints:
+            if (
+                dataset == "LPMC"
+                and functional_params
+                and j in lpmc_monotonic_constraints
+            ):
                 y_tastenet[:, j] = np.minimum(y_tastenet[:, j], 0)
 
             min_val = min(min_val, y_tastenet[:, j].min())
             max_val = max(max_val, y_tastenet[:, j].max())
-
-        if min_val == max_val:
-            min_val = min_val - 0.05
-            max_val = max_val + 0.05
+            y_tastenet_plot.append(y_tastenet[:, j])
 
         bin_edges = np.linspace(min_val, max_val, 50)
 
-        max_count = 0
         for model in all_models.keys():
             if model == "RUMBoost":
                 counts, _ = np.histogram(y_rumboost, bins=bin_edges)
@@ -720,30 +784,33 @@ def additional_plots_for(
                 counts, _ = np.histogram(y_tastenet[:, j], bins=bin_edges)
             max_count = max(max_count, counts.max())
 
+        feature_plot_names.append(feature_names[alt_spec_features[j]])
+
+    fig, axes = plt.subplots(1, 2, figsize=(8, 3), dpi=300)
+    for j, (y_r, y_t) in enumerate(zip(y_rumboost_plot, y_tastenet_plot)):
         for i, (model, ax) in enumerate(zip(all_models.keys(), axes.flatten())):
-            if feature_to_highlight:
-                df[feature_to_highlight] = df[feature_to_highlight].astype("category")
-                df[feature_to_highlight] = df[feature_to_highlight].cat.codes
-                hue = df[feature_to_highlight]
-            else:
-                hue = None
+
             if model == "RUMBoost":
                 sns.histplot(
-                    y_rumboost,
+                    y_r,
                     ax=ax,
                     bins=bin_edges,
-                    color=colors[i],
-                    hue=hue,
-                    # multiple="stack",
+                    color=colors[j],
+                    label=feature_plot_names[j],
+                    kde=True,
+                    alpha=0.3,
+                    fill=True,
                 )
             elif model == "TasteNet":
                 sns.histplot(
-                    y_tastenet[:, j],
+                    y_t,
                     ax=ax,
                     bins=bin_edges,
-                    color=colors[i],
-                    hue=hue,
-                    # multiple="stack",
+                    color=colors[j],
+                    label=feature_plot_names[j],
+                    kde=True,
+                    alpha=0.3,
+                    fill=True,
                 )
 
             if model == "RUMBoost":
@@ -761,56 +828,31 @@ def additional_plots_for(
                 elif functional_intercept:
                     title = "FI-DNN"
 
-            # if functional_params and j < num_plots - num_classes:
-            #     fig_title = f"{alt_spec_features[j]}"
-            # else:
-            #     fig_title = "Intercept"
             ax.set_title(title)
-            # ax.set_xlabel("Functional values")
             if i % 2 == 0:
                 ax.set_ylabel("Count")
-                # plt.title(fig_title, fontsize=8)
             else:
                 ax.set_ylabel("")
+        plt.legend()
 
-            xlim = (
-                min_val - (max_val - min_val) * 0.01,
-                max_val + (max_val - min_val) * 0.01,
-            )
-            ylim = (0, max_count * 1.1)
+    xlim = (
+        min_val - (max_val - min_val) * 0.01,
+        max_val + (max_val - min_val) * 0.01,
+    )
+    ylim = (0, max_count * 1.1)
 
-            plt.setp(axes, xlim=xlim, ylim=ylim)
+    plt.setp(axes, xlim=xlim, ylim=ylim)
 
-        if save_fig:
-            if not feature_to_highlight:
-                feature_to_highlight = ""
-            if dataset == "LPMC" and functional_params and j < len(alt_spec_features) and alt_spec_features[j] in feature_duplicated:
-                class_number = 0 if j < 4 else 1 if j < 8 else 2 if j < 18 else 3
-            else:
-                class_number = ""
-            if (
-                functional_params
-                and functional_intercept
-                and j < num_plots - num_classes
-            ):
-                save_path = f"results/{dataset}/figures/ind_spec_const_{alt_spec_features[j]}{class_number}_fi{functional_intercept}_fp{functional_params}_{feature_to_highlight}.png"
-            elif (
-                functional_params
-                and functional_intercept
-                and j >= num_plots - num_classes
-            ):
-                save_path = f"results/{dataset}/figures/ind_spec_const_intercept_{j - len(alt_spec_features)}_fiTrue_fp{functional_params}_{feature_to_highlight}.png"
-            elif functional_params and not functional_intercept:
-                save_path = f"results/{dataset}/figures/ind_spec_const_{alt_spec_features[j]}{class_number}_fi{functional_intercept}_fp{functional_params}_{feature_to_highlight}.png"
-            else:
-                save_path = f"results/{dataset}/figures/ind_spec_const_intercept_{j}_fiTrue_fp{functional_params}_{feature_to_highlight}.png"
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            plt.savefig(save_path, dpi=300, bbox_inches="tight")
+
+    if save_fig:
+        save_path = f"results/{dataset}/figures/all{features_highlighted}_fi{functional_intercept}_fp{functional_params}.png"
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
 
 if __name__ == "__main__":
 
-    for dataset in ["easySHARE"]: #, "LPMC", "SwissMetro", "easySHARE", 
+    for dataset in ["LPMC", "SwissMetro"]:  # , , "easySHARE",
         all_alt_spec_features = []
         for k, v in alt_spec_features[dataset].items():
             all_alt_spec_features.extend(v)
@@ -819,34 +861,53 @@ if __name__ == "__main__":
         if dataset in ["SwissMetro", "LPMC"]:
             path_to_data_train = path_to_data
 
-        plot_alt_spec_features(
-            all_alt_spec_features,
-            path_to_data=path_to_data,
-            save_fig=True,
-            dataset=dataset,
-        )
-        plot_ind_spec_constant(
-            all_alt_spec_features,
-            path_to_data=path_to_data,
-            path_to_data_train=path_to_data_train,
-            save_fig=True,
-            dataset=dataset,
-        )
-        plot_ind_spec_constant(
-            all_alt_spec_features,
-            path_to_data=path_to_data,
-            path_to_data_train=path_to_data_train,
-            save_fig=True,
-            functional_params=False,
-            functional_intercept=True,
-            dataset=dataset,
-        )
-        plot_ind_spec_constant(
-            all_alt_spec_features,
-            path_to_data=path_to_data,
-            path_to_data_train=path_to_data_train,
-            save_fig=True,
-            functional_params=True,
-            functional_intercept=False,
-            dataset=dataset,
-        )
+        # plot_alt_spec_features(
+        #     all_alt_spec_features,
+        #     path_to_data=path_to_data,
+        #     save_fig=True,
+        #     dataset=dataset,
+        # )
+        # plot_ind_spec_constant(
+        #     all_alt_spec_features,
+        #     path_to_data=path_to_data,
+        #     path_to_data_train=path_to_data_train,
+        #     save_fig=True,
+        #     dataset=dataset,
+        # )
+        # plot_ind_spec_constant(
+        #     all_alt_spec_features,
+        #     path_to_data=path_to_data,
+        #     path_to_data_train=path_to_data_train,
+        #     save_fig=True,
+        #     functional_params=False,
+        #     functional_intercept=True,
+        #     dataset=dataset,
+        # )
+        # plot_ind_spec_constant(
+        #     all_alt_spec_features,
+        #     path_to_data=path_to_data,
+        #     path_to_data_train=path_to_data_train,
+        #     save_fig=True,
+        #     functional_params=True,
+        #     functional_intercept=False,
+        #     dataset=dataset,
+        # )
+
+        for fh in ["tt", "cost"]:
+            if dataset == "LPMC" and fh == "tt":
+                fop = lpmc_tt_indices
+            elif dataset == "LPMC" and fh == "cost":
+                fop = lpmc_cost_indices
+            elif dataset == "SwissMetro" and fh == "tt":
+                fop = sm_tt_indices
+            else:
+                fop = sm_cost_indices
+            additional_plots_for_lpmc_sm(
+                all_alt_spec_features,
+                path_to_data=path_to_data,
+                path_to_data_train=path_to_data_train,
+                save_fig=True,
+                dataset=dataset,
+                features_highlighted=fh,
+                features_on_plot=fop,
+            )
