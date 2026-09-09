@@ -88,6 +88,20 @@ feature_names = {
     "congestion_charge": "Congestion charge",
     "driving_traffic_percent": "Road congestion percentage",
 }
+feature_names_add_plots = {
+    "SM_TT": "Swissmetro",
+    "SM_CO": "Swissmetro",
+    "TRAIN_TT": "Train",
+    "TRAIN_CO": "Train",
+    "CAR_TT": "Car",
+    "CAR_CO": "Car",
+    "dur_walking": "Walking",
+    "dur_cycling": "Cycling",
+    "dur_pt_rail": "PT",
+    "cost_transit": "PT",
+    "dur_driving": "Driving",
+    "cost_driving_fuel": "Driving",
+}
 
 sm_tt_indices = [0, 3, 7]
 sm_cost_indices = [2, 5, 8]
@@ -784,7 +798,7 @@ def additional_plots_for_lpmc_sm(
                 counts, _ = np.histogram(y_tastenet[:, j], bins=bin_edges)
             max_count = max(max_count, counts.max())
 
-        feature_plot_names.append(feature_names[alt_spec_features[j]])
+        feature_plot_names.append(feature_names_add_plots[alt_spec_features[j]])
 
     fig, axes = plt.subplots(1, 2, figsize=(8, 3), dpi=300)
     for j, (y_r, y_t) in enumerate(zip(y_rumboost_plot, y_tastenet_plot)):
@@ -833,7 +847,8 @@ def additional_plots_for_lpmc_sm(
                 ax.set_ylabel("Count")
             else:
                 ax.set_ylabel("")
-        plt.legend()
+        axes[0].legend()
+        axes[1].legend()
 
     xlim = (
         min_val - (max_val - min_val) * 0.01,
