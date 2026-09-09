@@ -847,8 +847,8 @@ def additional_plots_for_lpmc_sm(
                 ax.set_ylabel("Count")
             else:
                 ax.set_ylabel("")
-        axes[0].legend()
-        axes[1].legend()
+        axes[0].legend(loc="upper left")
+        axes[1].legend(loc="upper left")
 
     xlim = (
         min_val - (max_val - min_val) * 0.01,
@@ -860,7 +860,7 @@ def additional_plots_for_lpmc_sm(
 
 
     if save_fig:
-        save_path = f"results/{dataset}/figures/all{features_highlighted}_fi{functional_intercept}_fp{functional_params}.png"
+        save_path = f"results/{dataset}/figures/{dataset.lower()}_all{features_highlighted}_fi{functional_intercept}_fp{functional_params}.png"
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
